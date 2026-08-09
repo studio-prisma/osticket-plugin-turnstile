@@ -77,7 +77,9 @@ Works without database access, without the admin panel, and while you are locked
 touch include/plugins/turnstile/DISABLED
 ```
 
-`bootstrap()` aborts immediately — no validation, no widget, no output buffer. Remove the file to re-enable.
+No validation, no widget, no output buffer. Remove the file to re-enable.
+
+The `Cloudflare Turnstile` field type stays registered while the file is present. That is deliberate: unregistering it would leave any form row of that type unresolvable, and osTicket then fatals in `FormField::getImpl()` on every form it builds — agent panel and customer portal included. The kill switch silences the plugin; it does not unregister it.
 
 Further rollback stages are documented in [INSTALL §8](docs/INSTALL.md#8-kill-switch-and-rollback).
 

@@ -279,13 +279,17 @@ Ein Core-Patch von `include/client/header.inc.php` ist der letzte Ausweg und geh
 touch include/plugins/turnstile/DISABLED
 ```
 
-Das `bootstrap()` bricht danach sofort ab. Keine Prüfung, kein Widget, kein Output-Buffer. Zurücknehmen mit `rm`.
+Keine Prüfung, kein Widget, kein Output-Buffer. Zurücknehmen mit `rm`.
+
+Der Feldtyp `Cloudflare Turnstile` bleibt dabei registriert — der Kill-Switch legt das Plugin still, er meldet es nicht ab. Warum das der Unterschied ist: siehe Stufe 4.
 
 **Stufe 2 — einzelnen Bereich abschalten:** Admin-Panel → Plugin-Config → betroffenen Schalter aus.
 
 **Stufe 3 — Fail-Mode umstellen:** bei anhaltender Cloudflare-Störung `fail_mode` auf `open`. Formulare gehen wieder durch, Spam-Schutz ist so lange aus.
 
-**Stufe 4 — vollständig entfernen:** Plugin im Admin-Panel deaktivieren und deinstallieren, dann `include/plugins/turnstile/` löschen. Das Turnstile-Feld vorher aus den Formularen entfernen, sonst bleibt ein Feld mit unbekanntem Typ zurück.
+**Stufe 4 — vollständig entfernen:** **zuerst** das Turnstile-Feld aus allen Formularen entfernen (Admin → Manage → Forms), dann das Plugin im Admin-Panel deaktivieren und deinstallieren, und erst danach `include/plugins/turnstile/` löschen.
+
+> **Diese Reihenfolge nicht umdrehen.** Ist der Ordner weg, läuft kein Plugin-Code mehr, und der Feldtyp `turnstile` ist nicht mehr auflösbar. Jede verbliebene Zeile dieses Typs in `ost_form_field` lässt `FormField::getImpl()` mit `Class name must be a valid object or a string` sterben — und zwar bei *jedem* Formular, das osTicket baut: Agenten-UI, Kundenportal und Ticketerstellung aus E-Mail liefern gleichzeitig HTTP 500. Der Weg zurück ist: Ordner wieder hinlegen, Feld über die UI entfernen, dann erst löschen — oder die Zeile in der Datenbank entfernen. Wer das Plugin nur stilllegen will, nimmt den `DISABLED`-Kill-Switch; der lässt den Feldtyp registriert.
 
 ---
 

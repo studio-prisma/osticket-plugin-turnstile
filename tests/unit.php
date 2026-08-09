@@ -72,6 +72,31 @@ eq($vo['fail_mode'],'closed','verifierOptions fail_mode');
 $_SERVER['SCRIPT_NAME']='/account.php'; eq(TurnstileSettings::currentArea(),'register','currentArea account.php');
 $_SERVER['SCRIPT_NAME']='/open.php';    eq(TurnstileSettings::currentArea(),'ticket','currentArea open.php');
 
+// Erzwingungs-Allowlist. Alles ausserhalb kann kein Token mitliefern; dort darf
+// validateEntry() nicht anschlagen. api/cron.php ist der wichtige Fall: laeuft
+// dort ein Fehler auf, scheitert jeder Ticket-Import aus dem Postfach.
+$areaCases = [
+  ['/open.php',            'ticket',   'Gast-Ticketformular'],
+  ['/account.php',         'register', 'Client-Registrierung'],
+  ['/support/open.php',    'ticket',   'Unterverzeichnis-Installation'],
+  ['\\account.php',        'register', 'Backslash-Pfad wird normalisiert'],
+  ['/api/cron.php',        '',         'Mail-Abruf per Cron'],
+  ['/api/http.php',        '',         'JSON-API'],
+  ['/ajax.php',            '',         'AJAX-Endpoint'],
+  ['/scp/tickets.php',     '',         'Agent legt Ticket an'],
+  ['/login.php',           '',         'Client-Login (deckt der LoginGate ab)'],
+  ['/scp/login.php',       '',         'Staff-Login (deckt der LoginGate ab)'],
+  ['/tickets.php',         '',         'Client-Ticketansicht'],
+  ['/',                    '',         'Verzeichnis ohne Skript'],
+  ['',                     '',         'leerer SCRIPT_NAME (CLI ohne Kontext)'],
+];
+foreach ($areaCases as $c) {
+  eq(TurnstileSettings::areaForScript($c[0]), $c[1], "areaForScript('{$c[0]}') = '{$c[1]}' — {$c[2]}");
+}
+$ra = new ReflectionMethod('TurnstileSettings','areaForScript');
+ok($ra->isStatic() && $ra->isPublic(),'areaForScript() ist public static (ohne Webserver testbar)');
+$_SERVER['SCRIPT_NAME']='/open.php';
+
 // ---------- T4: Markup / XSS ----------
 grp('T4 Markup');
 TurnstileMarkup::reset();
@@ -219,6 +244,32 @@ $f3=new TurnstileFormField(); $f3->validateEntry('kaputt');
 eq(count($f3->errors()),0,'Break-Glass: Schutz aus -> keine Erzwingung');
 $_POST=[];
 
+// ---------- T10b: Regression Mail-Import ----------
+// FormField::addError() schreibt per Seiteneffekt in die Fehlerliste des
+// Formulars. Form::isValid() gibt !$this->_errors zurueck, also wirkt osTickets
+// origin='email'-Filter NICHT — ein Fehler von hier laesst jeden Ticket-Import
+// aus dem Postfach scheitern. Auf nicht-erzwingbaren Skripten darf deshalb
+// kein einziger addError() fallen, auch bei aktivem Schutz und leerem Token.
+grp('T10b Regression: kein Fehler ausserhalb der Widget-Skripte');
+TurnstileSettings::load(['cf_site_key'=>'k','cf_secret_key'=>'2x0000000000000000000000000000000AA',
+  'fail_mode'=>'closed','timeout'=>5,'log_failures'=>false,
+  'protect_ticket'=>1,'protect_client_register'=>1]);
+$saveScript=$_SERVER['SCRIPT_NAME']; $saveMethod=$_SERVER['REQUEST_METHOD'];
+foreach (['/api/cron.php','/api/http.php','/ajax.php','/scp/tickets.php','/login.php',''] as $script) {
+  $_SERVER['SCRIPT_NAME']=$script;
+  $_SERVER['REQUEST_METHOD']='GET';
+  TurnstileVerifier::resetCache();
+  $fx=new TurnstileFormField(); $fx->validateEntry('');
+  eq(count($fx->errors()),0,"kein Fehler auf '$script' trotz protect_ticket=1",implode(' | ',$fx->errors()));
+}
+// Gegenprobe: auf open.php muss es weiterhin greifen, sonst waere der Fix
+// eine stille Abschaltung des Captchas.
+$_SERVER['SCRIPT_NAME']='/open.php'; $_SERVER['REQUEST_METHOD']='POST';
+TurnstileVerifier::resetCache();
+$fy=new TurnstileFormField(); $fy->validateEntry('');
+ok(count($fy->errors())>0,'Gegenprobe: auf open.php wird weiterhin erzwungen');
+$_SERVER['SCRIPT_NAME']=$saveScript; $_SERVER['REQUEST_METHOD']=$saveMethod;
+
 // ---------- T11: Plugin-Bootstrap ----------
 grp('T11 Plugin-Bootstrap');
 $pc = new TurnstileConfig();
@@ -269,6 +320,43 @@ ok($rb->isStatic() && $rb->isPublic(),'needsBuffer() ist public static (ohne Web
 // Kein Widget-Skript -> attach() darf keinen Buffer aufmachen. Der CLI-Guard
 // greift hier vorher, deshalb wird nur die Entscheidung selbst geprüft.
 ok(!TurnstileLoginGate::needsBuffer('/file.php'),'Attachment-Download bekommt keinen Output-Buffer');
+
+// ---------- T13: Kill-Switch meldet den Feldtyp NICHT ab ----------
+// Ein bootstrap(), das vor addFieldTypes() aussteigt, macht den Typ 'turnstile'
+// unaufloesbar. Sobald eine Formularzeile dieses Typs in ost_form_field liegt,
+// stirbt danach jede Formular-Instanziierung in FormField::getImpl() — der
+// dokumentierte Notausgang wuerde die ganze Instanz lahmlegen.
+grp('T13 Kill-Switch (DISABLED-Datei)');
+$disabledFile = $PLUGIN . '/DISABLED';
+ok(!file_exists($disabledFile),'Vorbedingung: keine DISABLED-Datei im Repo');
+try {
+    file_put_contents($disabledFile, '');
+    $_SERVER['SCRIPT_NAME']='/open.php'; $_SERVER['REQUEST_METHOD']='POST';
+    $pk = new TurnstilePlugin();
+    $before=ob_get_level();
+    ob_start(); $pk->bootstrap();
+    while (ob_get_level()>$before) ob_end_clean();
+
+    $types = FormField::allTypes();
+    ok(isset($types['turnstile']) && $types['turnstile'][1]==='TurnstileFormField',
+       'Feldtyp bleibt trotz DISABLED registriert (sonst Fatal in getImpl)');
+    ok(TurnstileSettings::isKilled(),'isKilled() nach DISABLED-Datei');
+
+    TurnstileVerifier::resetCache();
+    $fk=new TurnstileFormField(); $fk->validateEntry('');
+    eq(count($fk->errors()),0,'DISABLED: keine Erzwingung trotz protect_ticket=1',implode(' | ',$fk->errors()));
+
+    ob_start(); (new TurnstileFieldWidget(new TurnstileFormField()))->render(); $out=ob_get_clean();
+    eq($out,'','DISABLED: Widget rendert nichts');
+} finally {
+    if (file_exists($disabledFile)) { unlink($disabledFile); }
+}
+ok(!file_exists($disabledFile),'DISABLED-Datei nach dem Test wieder entfernt');
+// Ohne die Datei ist der Kill-Switch zurueckgenommen.
+$before=ob_get_level();
+ob_start(); (new TurnstilePlugin())->bootstrap();
+while (ob_get_level()>$before) ob_end_clean();
+ok(!TurnstileSettings::isKilled(),'ohne DISABLED-Datei ist der Kill-Switch wieder aus');
 
 echo "\n".str_repeat('-',52)."\n";
 printf("PHP %s   PASS: %d   FAIL: %d\n", PHP_VERSION, $PASS, $FAIL);

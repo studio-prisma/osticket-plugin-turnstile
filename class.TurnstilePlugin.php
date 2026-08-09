@@ -68,20 +68,27 @@ class TurnstilePlugin extends Plugin
             'protect_staff_login'     => $config->get('protect_staff_login'),
         ));
 
-        // Kill-Switch: Datei anlegen, um das Plugin ohne DB-Zugriff
-        // vollständig stillzulegen. Siehe docs/INSTALL.md, Abschnitt 8.
-        if (file_exists(__DIR__ . '/DISABLED')) {
-            error_log('[turnstile] disabled via DISABLED file');
-            return;
-        }
-
-        // Feldtyp registrieren. Steht danach im Formular-Builder unter
-        // Admin > Manage > Forms als "Cloudflare Turnstile" bereit.
+        // Feldtyp registrieren — IMMER, auch bei gezogenem Kill-Switch.
+        //
+        // Steht danach im Formular-Builder unter Admin > Manage > Forms als
+        // "Cloudflare Turnstile" bereit. Die Registrierung darf nie an einer
+        // Bedingung hängen: sobald eine Formularzeile vom Typ 'turnstile' in
+        // ost_form_field liegt und der Typ nicht aufgelöst werden kann, stirbt
+        // JEDE Formular-Instanziierung in FormField::getImpl(). Das trifft
+        // Agenten-UI, Kundenportal und Mail-Import gleichzeitig.
         FormField::addFieldTypes('Verification', function () {
             return array(
                 'turnstile' => array('Cloudflare Turnstile', 'TurnstileFormField'),
             );
         });
+
+        // Kill-Switch: Datei anlegen, um die Prüfung ohne DB-Zugriff
+        // stillzulegen. Siehe docs/INSTALL.md, Abschnitt 8.
+        if (file_exists(__DIR__ . '/DISABLED')) {
+            TurnstileSettings::kill();
+            error_log('[turnstile] disabled via DISABLED file');
+            return;
+        }
 
         TurnstileLoginGate::attach();
     }
