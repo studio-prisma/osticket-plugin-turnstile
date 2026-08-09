@@ -52,12 +52,13 @@ class TurnstileConfig extends PluginConfig
             )),
 
             'cf_hostname' => new TextboxField(array(
-                'label'         => 'Erwarteter Hostname (optional)',
+                'label'         => 'Erwarteter Hostname (empfohlen)',
                 'required'      => false,
                 'hint'          => 'z. B. support.example.com — wenn gesetzt, wird das '
                                  . 'Feld "hostname" der siteverify-Antwort dagegen geprüft. '
-                                 . 'Verhindert, dass Tokens fremder Domains akzeptiert werden. '
-                                 . 'Leer lassen, wenn mehrere Hostnames auf dieselbe Instanz zeigen.',
+                                 . 'LEER = ein Token, das auf einer anderen Domain desselben '
+                                 . 'Widgets erzeugt wurde, wird hier akzeptiert. Nur leer '
+                                 . 'lassen, wenn mehrere Hostnames auf dieselbe Instanz zeigen.',
                 'configuration' => array(
                     'size'         => 60,
                     'length'       => 120,
@@ -179,7 +180,7 @@ class TurnstileConfig extends PluginConfig
      *     && count($errors) === 0
      *
      * JEDER Eintrag in $errors verhindert das Speichern, auch ein rein
-     * informativer. Warnungen gehen deshalb über Messages::warning() und
+     * informativer. Warnungen gehen deshalb über osTicket::setWarning() und
      * niemals über $errors. Sonst lässt sich die Config nicht speichern
      * und das Plugin meldet anschliessend "nicht konfiguriert".
      */
@@ -206,14 +207,18 @@ class TurnstileConfig extends PluginConfig
             || !empty($config['protect_client_login'])
             || !empty($config['protect_staff_login']);
 
+        $warnings = array();
+
         if (!$anyProtection) {
-            $errors['warn'] = 'Kein Schutzbereich aktiv — das Plugin tut aktuell nichts.';
+            $warnings[] = 'Kein Schutzbereich aktiv — das Plugin tut aktuell nichts.';
         }
 
         if (!empty($config['protect_staff_login']) && ($config['fail_mode'] ?? 'closed') === 'closed') {
-            $errors['warn'] = 'Staff-Login ist geschützt und Fail-Mode ist "closed". '
-                            . 'Eine Cloudflare-Störung sperrt damit alle Agenten aus. '
-                            . 'Kill-Switch bereithalten (siehe EINSPIELEN.md).';
+            $warnings[] = 'Staff-Login ist geschützt und Fail-Mode ist "closed". '
+                        . 'Eine Cloudflare-Störung sperrt damit alle Agenten aus. '
+                        . 'Kill-Switch bereithalten (siehe docs/INSTALL.md, Abschnitt 8: '
+                        . 'https://github.com/studio-prisma/osticket-plugin-turnstile'
+                        . '/blob/main/docs/INSTALL.md).';
         }
 
         if (!empty($config['cf_hostname'])) {
@@ -224,8 +229,47 @@ class TurnstileConfig extends PluginConfig
                 return false;
             }
             $config['cf_hostname'] = strtolower($host);
+        } elseif ($anyProtection) {
+            // Ohne Hostname prüft siteverify nur, dass das Token echt ist —
+            // nicht, dass es zu dieser Seite gehört.
+            $warnings[] = 'Kein erwarteter Hostname gesetzt: ein Token, das auf einer '
+                        . 'anderen Domain desselben Widgets erzeugt wurde, wird akzeptiert. '
+                        . 'Empfohlen, ausser mehrere Hostnames zeigen auf dieselbe Instanz.';
         }
 
+        self::warn($warnings);
+
         return true;
+    }
+
+    /**
+     * Zuletzt erzeugte Warnungen. Nur für Tests — die Zustellung an die
+     * Admin-Oberfläche läuft über $ost und ist ohne osTicket nicht prüfbar.
+     *
+     * @var string[]
+     */
+    public static $lastWarnings = array();
+
+    /**
+     * Reicht Warnungen an die Admin-Oberfläche durch.
+     *
+     * Bewusst NICHT über $errors — siehe pre_save(). osTicket::setWarning()
+     * überschreibt sich selbst, deshalb wird zu einem Text zusammengefasst.
+     *
+     * @param string[] $warnings
+     */
+    private static function warn(array $warnings)
+    {
+        self::$lastWarnings = $warnings;
+
+        if (!$warnings) {
+            return;
+        }
+
+        global $ost;
+
+        if (isset($ost) && method_exists($ost, 'setWarning')) {
+            $ost->setWarning(implode(' | ', $warnings));
+        }
     }
 }
