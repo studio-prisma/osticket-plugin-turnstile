@@ -26,10 +26,33 @@ declare(strict_types=1);
  * Header ersetzt und Header erst beim Flush des Buffers gesendet werden.
  * Der Callback läuft nach include/client/header.inc.php und gewinnt damit.
  * Das ersetzt den sonst üblichen Core-Patch.
+ *
+ * Der Buffer wird bewusst NUR auf den Skripten gestartet, auf denen ein
+ * Widget rendern kann (BUFFER_SCRIPTS). ob_start() mit Callback und ohne
+ * chunk_size hält die gesamte Ausgabe im Speicher, bis der Request endet —
+ * über einem Attachment-Download (file.php, scp/file.php) würde damit die
+ * komplette Datei in den PHP-Speicher gezogen, ohne dass der Callback dort
+ * irgendetwas zu tun hätte.
+ *
+ * Grenze der Allowlist: wird das Feld "Cloudflare Turnstile" im
+ * Formular-Builder einem Formular zugeordnet, das ein hier nicht gelistetes
+ * Skript rendert, bleibt der CSP-Header dort unverändert und das Widget wird
+ * blockiert. Dann gehört das Skript in die Liste.
  */
 final class TurnstileLoginGate
 {
     const CF_ORIGIN = 'https://challenges.cloudflare.com';
+
+    /**
+     * Skripte, auf denen ein Turnstile-Widget rendern kann und der Buffer
+     * deshalb gebraucht wird. Verglichen wird der Basename, damit
+     * scp/login.php von 'login.php' mit abgedeckt ist.
+     *
+     *   login.php    Client-Login (Injektion)   + scp/login.php Staff-Login
+     *   open.php     Gast-Ticketformular        (Formular-Builder-Feld, nur CSP)
+     *   account.php  Client-Registrierung       (Formular-Builder-Feld, nur CSP)
+     */
+    const BUFFER_SCRIPTS = array('login.php', 'open.php', 'account.php');
 
     /** @var string '' | 'login' | 'staff' */
     private static $area = '';
@@ -46,7 +69,9 @@ final class TurnstileLoginGate
             return;
         }
 
-        self::$area = self::detectArea();
+        $script = self::scriptName();
+
+        self::$area = self::detectArea($script);
 
         // Der CSP-Fix wird immer gebraucht, sobald irgendein Schutz aktiv ist —
         // auch auf open.php, wo das Formular-Builder-Feld rendert.
@@ -59,21 +84,55 @@ final class TurnstileLoginGate
             return;
         }
 
+        // Vor dem Buffer-Guard: die Token-Prüfung eines Login-POSTs darf nicht
+        // davon abhängen, ob auf dieser Seite gepuffert wird.
         if (self::$area !== '' && TurnstileSettings::protects(self::$area)) {
             self::guardPost();
+        }
+
+        if (!self::needsBuffer($script)) {
+            return;
         }
 
         ob_start(array(__CLASS__, 'filter'));
     }
 
     /**
-     * Leitet den Bereich aus dem laufenden Skript ab.
-     * scp/login.php und login.php heissen beide "login.php" — der Pfad entscheidet.
+     * Der Pfad des laufenden Skripts, auf Vorwärts-Slashes normalisiert.
      */
-    private static function detectArea()
+    private static function scriptName()
     {
         $script = isset($_SERVER['SCRIPT_NAME']) ? (string) $_SERVER['SCRIPT_NAME'] : '';
-        $script = str_replace('\\', '/', $script);
+
+        return str_replace('\\', '/', $script);
+    }
+
+    /**
+     * Braucht dieser Request einen Output-Buffer?
+     *
+     * Reine String-Prüfung und public — wie rewriteCspValue() ausgelagert,
+     * damit sie ohne laufenden Webserver testbar ist.
+     */
+    public static function needsBuffer($scriptName)
+    {
+        $script = str_replace('\\', '/', (string) $scriptName);
+
+        if ($script === '') {
+            return false;
+        }
+
+        return in_array(basename($script), self::BUFFER_SCRIPTS, true);
+    }
+
+    /**
+     * Leitet den Bereich aus dem laufenden Skript ab.
+     * scp/login.php und login.php heissen beide "login.php" — der Pfad entscheidet.
+     *
+     * @param string $script Bereits normalisierter Pfad aus scriptName().
+     */
+    private static function detectArea($script)
+    {
+        $script = (string) $script;
 
         if (substr($script, -14) === '/scp/login.php') {
             return 'staff';

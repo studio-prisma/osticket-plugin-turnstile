@@ -69,6 +69,17 @@ try:
     chk('cf-turnstile' in b,'Widget auch auf scp/login.php')
     st,h,b=req('/scp/login.php',{'username':'a','passwd':'b'})
     chk(st==403,'Staff-POST ohne Token blockiert',st)
+
+    print('\n== I7 Skript ohne Widget: kein Buffer, kein CSP-Eingriff ==')
+    st,h,b=req('/file.php')
+    chk(st==200,'GET liefert 200',st)
+    head=b.split('\n')[0] if b else ''
+    lv=dict(p.split('=',1) for p in head.split(' ') if '=' in p)
+    chk('OB-BEFORE' in lv and lv['OB-BEFORE']==lv.get('OB-AFTER'),
+        'bootstrap() öffnet auf file.php keinen Output-Buffer',head)
+    csp=h.get('Content-Security-Policy','')
+    chk('challenges.cloudflare.com' not in csp,'CSP-Header unangetastet',csp)
+    chk('MARKER-PAYLOAD' in b and 'cf-turnstile' not in b,'Body unverändert, kein Widget injiziert')
 finally:
     srv.terminate(); srv.wait()
 

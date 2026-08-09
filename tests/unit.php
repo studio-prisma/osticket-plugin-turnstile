@@ -43,7 +43,17 @@ eq($cfg->pre_save($c,$e),false,'pre_save lehnt ungültigen Hostname ab');
 $e=[]; $c=['cf_site_key'=>'a','cf_secret_key'=>'b','cf_hostname'=>'Service.EXAMPLE.COM','protect_ticket'=>1];
 ok($cfg->pre_save($c,$e)===true && $c['cf_hostname']==='service.example.com','pre_save normalisiert Hostname auf lowercase');
 $e=[]; $c=['cf_site_key'=>'a','cf_secret_key'=>'b','protect_staff_login'=>1,'fail_mode'=>'closed'];
-ok($cfg->pre_save($c,$e)===true && !empty($e['warn']),'pre_save warnt bei Staff-Login + fail closed');
+$r=$cfg->pre_save($c,$e);
+// osTicket bricht das Speichern bei count($errors)!==0 ab (class.plugin.php store()).
+// Eine Warnung in $errors würde die Config also unspeicherbar machen.
+ok($r===true && $e===[],'pre_save gibt Warnungen NICHT über $errors aus (Config bleibt speicherbar)',var_export($e,true));
+ok(count(TurnstileConfig::$lastWarnings)>=1,'pre_save warnt bei Staff-Login + fail closed');
+$e=[]; $c=['cf_site_key'=>'a','cf_secret_key'=>'b','protect_ticket'=>1];
+ok($cfg->pre_save($c,$e)===true && $e===[] && count(TurnstileConfig::$lastWarnings)===1
+   && strpos(TurnstileConfig::$lastWarnings[0],'Hostname')!==false,
+   'pre_save warnt bei aktivem Schutz ohne Hostname',var_export(TurnstileConfig::$lastWarnings,true));
+$e=[]; $c=['cf_site_key'=>'a','cf_secret_key'=>'b','cf_hostname'=>'support.example.com','protect_ticket'=>1];
+ok($cfg->pre_save($c,$e)===true && TurnstileConfig::$lastWarnings===[],'mit Hostname + Schutz: keine Warnung',var_export(TurnstileConfig::$lastWarnings,true));
 
 // ---------- T3: Settings ----------
 grp('T3 Settings');
@@ -221,6 +231,35 @@ ok($ra->isStatic() && $ra->isPublic(),'attach() ist public static');
 $types = FormField::allTypes();
 ok(isset($types['turnstile']) && $types['turnstile'][1]==='TurnstileFormField','Feldtyp "turnstile" registriert');
 eq(TurnstileSettings::get('site_key'),'1x00000000000000000000AA','Settings aus Config übernommen');
+
+// ---------- T12: Buffer-Allowlist ----------
+// ob_start() mit Callback puffert die gesamte Ausgabe im Speicher. Auf
+// Skripten ohne Widget (allen voran Attachment-Downloads) darf deshalb
+// gar kein Buffer entstehen.
+grp('T12 Buffer-Allowlist');
+$bufCases = [
+  ['/login.php',            true,  'Client-Login'],
+  ['/scp/login.php',        true,  'Staff-Login'],
+  ['/open.php',             true,  'Gast-Ticketformular'],
+  ['/account.php',          true,  'Client-Registrierung'],
+  ['/support/open.php',     true,  'Unterverzeichnis-Installation'],
+  ['\\scp\\login.php',      true,  'Backslash-Pfad wird normalisiert'],
+  ['/file.php',             false, 'Attachment-Download Client'],
+  ['/scp/file.php',         false, 'Attachment-Download Staff'],
+  ['/ajax.php',             false, 'AJAX-Endpoint'],
+  ['/scp/index.php',        false, 'Staff-Dashboard'],
+  ['/tickets.php',          false, 'Client-Ticketansicht'],
+  ['/',                     false, 'Verzeichnis ohne Skript'],
+  ['',                      false, 'leerer SCRIPT_NAME'],
+];
+foreach ($bufCases as $c) {
+  eq(TurnstileLoginGate::needsBuffer($c[0]), $c[1], "needsBuffer('{$c[0]}') = ".var_export($c[1],true)." — {$c[2]}");
+}
+$rb = new ReflectionMethod('TurnstileLoginGate','needsBuffer');
+ok($rb->isStatic() && $rb->isPublic(),'needsBuffer() ist public static (ohne Webserver testbar)');
+// Kein Widget-Skript -> attach() darf keinen Buffer aufmachen. Der CLI-Guard
+// greift hier vorher, deshalb wird nur die Entscheidung selbst geprüft.
+ok(!TurnstileLoginGate::needsBuffer('/file.php'),'Attachment-Download bekommt keinen Output-Buffer');
 
 echo "\n".str_repeat('-',52)."\n";
 printf("PHP %s   PASS: %d   FAIL: %d\n", PHP_VERSION, $PASS, $FAIL);
