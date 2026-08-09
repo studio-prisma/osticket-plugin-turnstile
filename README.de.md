@@ -3,7 +3,7 @@
 [![Validate](https://github.com/studio-prisma/osticket-plugin-turnstile/actions/workflows/validate.yml/badge.svg)](https://github.com/studio-prisma/osticket-plugin-turnstile/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![osTicket 1.18.x](https://img.shields.io/badge/osTicket-1.18.x-1c4e80.svg)](https://osticket.com/)
-[![PHP 8.1–8.2](https://img.shields.io/badge/PHP-8.1%E2%80%938.2-777bb4.svg)](https://www.php.net/)
+[![PHP 8.0–8.4](https://img.shields.io/badge/PHP-8.0%E2%80%938.4-777bb4.svg)](https://www.php.net/)
 
 CAPTCHA-Schutz für osTicket mit [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) — serverseitige Token-Validierung, einzeln schaltbare Schutzbereiche und ein dateibasierter Not-Aus, der auch dann greift, wenn du dich ausgesperrt hast.
 
@@ -45,7 +45,7 @@ Verglichen mit [`nhaskaris/turnstile_osticket`](https://github.com/nhaskaris/tur
 ## Voraussetzungen
 
 - osTicket **1.18.x** (die Plugin-API ist in 1.17.x identisch, verifiziert ist nur 1.18.x)
-- PHP **8.1–8.2** mit `curl`-Extension — der von osTicket 1.18 unterstützte Bereich. Der Plugin-Code selbst ist PHP-8.0-kompatibel und zusätzlich auf 8.3 und 8.4 verifiziert
+- PHP **8.0–8.4** mit `curl`-Extension. Der Plugin-Code ist PHP-8.0-kompatibel, CI lintet und testet auf 8.0, 8.1, 8.2, 8.3 und 8.4. Produktiv läuft er auf **8.3.33**. Welche davon deine Instanz nutzen darf, entscheidet osTicket, nicht dieses Plugin — 1.18.2 und neuer unterstützen 8.3 und 8.4
 - Ausgehendes HTTPS zu `challenges.cloudflare.com`
 - Cloudflare-Account (Turnstile ist kostenlos)
 
@@ -89,8 +89,8 @@ Weitere Rollback-Stufen: [INSTALL §8](docs/INSTALL.de.md#8-kill-switch-und-roll
 |---|---|---|
 | Site Key | — | Öffentlicher Schlüssel aus dem Cloudflare-Turnstile-Dashboard |
 | Secret Key | — | Geheim. Wird nie gerendert, nie geloggt, nie in einer Fehlermeldung ausgegeben |
-| Erwarteter Hostname | leer | Wenn gesetzt, muss `hostname` in der siteverify-Antwort übereinstimmen. Blockt Tokens fremder Domains |
-| Gast-Ticketformular | aus | Schützt `open.php` |
+| Erwarteter Hostname | leer — **setzen** | `hostname` in der siteverify-Antwort muss übereinstimmen. Leer gelassen wird ein Token akzeptiert, das auf einer beliebigen anderen Domain desselben Widgets erzeugt wurde |
+| Gast-Ticketformular | an | Schützt `open.php` |
 | Client-Registrierung | aus | Schützt `account.php` |
 | Client-Login | aus | Schützt `login.php` |
 | Staff-Login | aus | Schützt `scp/login.php` |
@@ -100,7 +100,7 @@ Weitere Rollback-Stufen: [INSTALL §8](docs/INSTALL.de.md#8-kill-switch-und-roll
 | Widget-Größe | normal | `normal`, `compact` |
 | Fehlversuche protokollieren | an | Schreibt Bereich, Grund, IP und gekürztes Detail ins PHP-Error-Log |
 
-Die Konfiguration wird beim Speichern validiert: leerer Site oder Secret Key wird abgelehnt, Hostnames werden auf Kleinschreibung normalisiert und syntaktisch geprüft, und *Staff-Login* zusammen mit `fail_mode = closed` erzeugt eine explizite Warnung.
+Die Konfiguration wird beim Speichern validiert: leerer Site oder Secret Key wird abgelehnt, Hostnames werden auf Kleinschreibung normalisiert und syntaktisch geprüft. Zwei Konstellationen erzeugen eine Warnung, ohne das Speichern zu blockieren — *Staff-Login* zusammen mit `fail_mode = closed`, und ein aktiver Schutzbereich ohne erwarteten Hostname.
 
 ---
 
@@ -151,6 +151,7 @@ Details und E2E-Setup: [tests/README.md](tests/README.md).
 - **Kein Schutz ohne JavaScript.** Ohne JS gibt es kein Token, und bei `fail_mode = closed` ist das eine harte Sperre. Für Barrierefreiheit einen alternativen Kanal (E-Mail-Ticket) offenhalten — der Mail-Eingang ist von diesem Plugin nicht betroffen.
 - **E-Mail-Tickets und die API bleiben ungeschützt.** Spam über `api/tickets.json` oder den Mail-Pipe braucht andere Maßnahmen.
 - **Die Login-Injektion arbeitet auf dem gerenderten HTML.** Sie sucht das erste Formular mit einem Passwortfeld. Ein osTicket-Update, das die Login-Templates umbaut, kann das brechen — nach jedem osTicket-Update die Login-Smoke-Tests erneut fahren.
+- **Der CSP-Rewrite ist auf vier Skripte begrenzt:** `login.php`, `scp/login.php`, `open.php`, `account.php`. Er läuft in einem Output-Buffer-Callback, und ein Buffer über einem Attachment-Download würde die ganze Datei im Speicher halten — der Buffer startet deshalb nur dort, wo ein Widget auftauchen kann. Hängt das Feld an einem anderswo gerenderten Formular, wird das Widget dort per CSP blockiert.
 - **`CF-Connecting-IP` ist fälschbar**, wenn der Origin unter seiner IP direkt erreichbar ist. Für das rein informative `remoteip`-Feld bei siteverify folgenlos, aber keine Autorisierungsentscheidung darauf bauen.
 - **Die Ausführung des AJAX-Fragments im Browser ist nicht automatisiert verifiziert.** Ausgeliefertes Markup und Re-Render-Hook sind getestet; ob Cloudflares `api.js` im Fragment tatsächlich anläuft, hängt davon ab, wie osTicket es einhängt. Ein Bootstrap-Poller rendert 10 s lang alle 250 ms nach. Smoke-Test 6.1 bestätigt es.
 - **Die Admin-UI ist auf Deutsch.** Code, Dokumentation und Issue-Templates sind Englisch; die Labels der Plugin-Konfiguration sind noch nicht lokalisiert. Als Folgeaufgabe vorgemerkt.

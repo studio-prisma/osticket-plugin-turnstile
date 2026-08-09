@@ -85,7 +85,7 @@ Widget erscheint.
 ## 1. Voraussetzungen prüfen
 
 ```bash
-php -v                      # 8.1-8.2 für osTicket 1.18
+php -v                      # 8.0-8.4 unterstützt, produktiv verifiziert auf 8.3.33
 php -m | grep -i curl       # muss "curl" liefern
 ```
 
@@ -157,7 +157,7 @@ find turnstile -name '*.php' -exec php -l {} \;
 
 Erwartet: `No syntax errors detected` für alle acht Dateien.
 
-Lokal ist das bereits gegen PHP 8.3.32 gelaufen (Abschnitt 0b). Auf dem Server trotzdem
+Lokal ist das bereits gegen PHP 8.3.33 gelaufen (Abschnitt 0b). Auf dem Server trotzdem
 wiederholen: dort entscheidet die tatsächlich installierte PHP-Version und der
 Extension-Satz, nicht der Testbuild.
 
@@ -173,7 +173,7 @@ Dann Instanz anlegen und konfigurieren:
 |---|---|
 | Site Key | aus Schritt 2 |
 | Secret Key | aus Schritt 2 |
-| Erwarteter Hostname | `support.example.com` |
+| Erwarteter Hostname | `support.example.com` — **setzen** |
 | Gast-Ticketformular | **an** |
 | Client-Registrierung | aus |
 | Client-Login | aus |
@@ -185,6 +185,8 @@ Dann Instanz anlegen und konfigurieren:
 Instanz auf **Enabled** setzen.
 
 Die drei Login-Bereiche bleiben aus, bis Schritt 6 grün ist. Das ist der Aussperr-Schutz.
+
+**Den erwarteten Hostname nicht leer lassen.** Ohne ihn bestätigt siteverify nur, dass das Token echt ist — nicht, dass es zu dieser Seite gehört. Ein Token, das auf einer beliebigen anderen Domain desselben Widgets erzeugt wurde, wird dann akzeptiert. Leer nur, wenn mehrere Hostnames auf diese Instanz zeigen. Speichern mit aktivem Schutzbereich und ohne Hostname erzeugt eine Warnung; sie blockiert das Speichern nicht.
 
 ---
 
@@ -303,8 +305,10 @@ Jeder Punkt einmal real ausgeführt, nicht angenommen. Jeder Fall mit **frischem
 | 8 | Client-Response nach Fehlschlag prüfen | kein Cloudflare-Fehlercode, kein Pfad, kein Stacktrace |
 | 9 | `grep -ri "<secret-key>" /var/log/ /tmp/` | 0 Treffer |
 | 10 | `grep -i turnstile` im PHP-Error-Log | nur `area=`, `reason=`, `ip=`, gekürztes `detail=` |
+| 11 | Erwarteten Hostname absichtlich falsch setzen, dann gültiges Token senden | abgelehnt, Log zeigt `reason=hostname_mismatch` |
+| 12 | Grossen Anhang herunterladen, während ein Schutzbereich aktiv ist | streamt wie vorher, kein Speicher-Peak — ausserhalb von `login.php`, `scp/login.php`, `open.php`, `account.php` startet das Plugin keinen Output-Buffer |
 
-Fall 3 ist der wichtigste — er beweist, dass der Request-Cache den Replay-Schutz nicht aushebelt.
+Fall 3 ist der wichtigste — er beweist, dass der Request-Cache den Replay-Schutz nicht aushebelt. Fall 11 beweist, dass die Hostname-Prüfung wirklich scharf ist; ohne ihn gibt es dafür keinen Beleg.
 
 ---
 
@@ -313,5 +317,6 @@ Fall 3 ist der wichtigste — er beweist, dass der Request-Cache den Replay-Schu
 - **Kein Schutz ohne JavaScript.** Wer JS deaktiviert, bekommt kein Token und kann kein Ticket anlegen. Bei `fail_mode=closed` ist das eine harte Sperre. Für Barrierefreiheit ggf. einen alternativen Kanal (E-Mail-Ticket) offenhalten — der Mail-Eingang ist von diesem Plugin nicht betroffen.
 - **E-Mail-Tickets und die API bleiben ungeschützt.** Turnstile ist ein Browser-Mechanismus. Spam über `api/tickets.json` oder über den Mail-Pipe braucht andere Maßnahmen.
 - **Die Login-Injektion arbeitet auf dem gerenderten HTML.** Sie sucht das erste Formular mit einem Passwortfeld. Ein osTicket-Update, das die Login-Templates umbaut, kann das brechen — dann rendert kein Widget und der Login schlägt bei `fail_mode=closed` fehl. Nach jedem osTicket-Update Schritt 6.3 und 6.4 erneut fahren.
+- **Der CSP-Rewrite läuft nur auf vier Skripten:** `login.php`, `scp/login.php`, `open.php`, `account.php`. Das ist Absicht — der Rewrite sitzt in einem Output-Buffer-Callback, und ein Buffer über einem Attachment-Download würde die ganze Datei im Speicher halten. Hängst du das Turnstile-Feld an ein Formular, das ein anderes Skript rendert, wird das Widget dort per CSP blockiert. Abhilfe: `challenges.cloudflare.com` auf Webserver-Ebene in `script-src` erlauben (Abschnitt 7), oder das Skript in `BUFFER_SCRIPTS` in `src/TurnstileLoginGate.php` ergänzen.
 - **`CF-Connecting-IP` ist fälschbar**, weil der Origin unter seiner IP direkt erreichbar ist. Für das `remoteip`-Feld bei siteverify ist das folgenlos — es ist rein informativ. Sobald an anderer Stelle auf diese IP eine Entscheidung gebaut wird, muss sie gegen die Cloudflare-Ranges geprüft werden.
 - **Datenschutz:** Turnstile lädt ein Skript von Cloudflare und überträgt IP-Adresse und Browser-Signale in die USA. Cloudflare setzt dabei keine Tracking-Cookies. In die Datenschutzerklärung von `support.example.com` gehört ein Absatz dazu, inklusive AV-Vertrag mit Cloudflare. *Ich bin kein Anwalt — bitte gegenprüfen lassen.*

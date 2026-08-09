@@ -87,7 +87,7 @@ widget appears.
 ## 1. Check prerequisites
 
 ```bash
-php -v                      # 8.1-8.2 for osTicket 1.18
+php -v                      # 8.0-8.4 supported, verified in production on 8.3.33
 php -m | grep -i curl       # must return "curl"
 ```
 
@@ -173,7 +173,7 @@ Then create an instance and configure it:
 |---|---|
 | Site key | from step 2 |
 | Secret key | from step 2 |
-| Expected hostname | `support.example.com` |
+| Expected hostname | `support.example.com` — **set this** |
 | Guest ticket form | **on** |
 | Client registration | off |
 | Client login | off |
@@ -185,6 +185,8 @@ Then create an instance and configure it:
 Set the instance to **Enabled**.
 
 The three login areas stay off until step 6 is green. That is the lockout protection.
+
+**Do not leave the expected hostname empty.** Without it, siteverify only confirms that the token is genuine — not that it was minted for this site. A token generated on any other domain that uses the same widget is then accepted. Leave it empty only if several hostnames point at this instance. Saving with an active protection area and no hostname raises a warning; the warning does not block the save.
 
 ---
 
@@ -303,8 +305,10 @@ Execute every item for real once, do not assume it. Every case with a **fresh pr
 | 8 | Inspect the client response after a failure | no Cloudflare error code, no path, no stack trace |
 | 9 | `grep -ri "<secret-key>" /var/log/ /tmp/` | 0 hits |
 | 10 | `grep -i turnstile` in the PHP error log | only `area=`, `reason=`, `ip=`, truncated `detail=` |
+| 11 | Set the expected hostname to a value that is deliberately wrong, then submit a valid token | rejected, log shows `reason=hostname_mismatch` |
+| 12 | Download a large attachment while a protection area is active | streams as before, no memory spike — the plugin starts no output buffer outside `login.php`, `scp/login.php`, `open.php`, `account.php` |
 
-Case 3 is the most important one — it proves that the request cache does not defeat replay protection.
+Case 3 is the most important one — it proves that the request cache does not defeat replay protection. Case 11 proves the hostname check is actually armed; skip it and you have no evidence that it is.
 
 ---
 
@@ -313,5 +317,6 @@ Case 3 is the most important one — it proves that the request cache does not d
 - **No protection without JavaScript.** Anyone who disables JS gets no token and cannot create a ticket. At `fail_mode=closed` that is a hard block. For accessibility, keep an alternative channel (email ticket) open — email intake is unaffected by this plugin.
 - **Email tickets and the API stay unprotected.** Turnstile is a browser mechanism. Spam via `api/tickets.json` or the mail pipe needs different measures.
 - **The login injection operates on rendered HTML.** It looks for the first form containing a password field. An osTicket update that rebuilds the login templates can break this — then no widget renders and login fails under `fail_mode=closed`. Re-run steps 6.3 and 6.4 after every osTicket update.
+- **The CSP rewrite only runs on four scripts:** `login.php`, `scp/login.php`, `open.php`, `account.php`. That is deliberate — the rewrite lives in an output-buffer callback, and a buffer over an attachment download would hold the whole file in memory. If you attach the Turnstile field to a form that some other script renders, the widget is CSP-blocked there. Fix it by allowing `challenges.cloudflare.com` in `script-src` at the web server level (section 7), or by adding the script to `BUFFER_SCRIPTS` in `src/TurnstileLoginGate.php`.
 - **`CF-Connecting-IP` is forgeable**, because the origin is reachable directly by its IP. For the `remoteip` field of siteverify this is inconsequential — it is purely informational. As soon as a decision is built on that IP elsewhere, it has to be checked against the Cloudflare ranges.
 - **Privacy:** Turnstile loads a script from Cloudflare and transmits the IP address and browser signals to the United States. Cloudflare states it sets no tracking cookies. If you operate under the GDPR, your privacy policy for `support.example.com` needs a paragraph about this, including a data processing agreement with Cloudflare. *This is not legal advice — have it reviewed.*

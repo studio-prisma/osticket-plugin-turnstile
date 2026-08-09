@@ -41,7 +41,7 @@ For anything touching the login gate or the form field, also verify against a **
 
 ## Code conventions
 
-- **PHP 8.0 compatible.** osTicket 1.18 supports PHP 8.1–8.2; the plugin stays one minor below that floor so it also runs on a 1.17 instance. No `match`, no enums, no readonly properties, no named arguments. CI enforces this by linting on 8.0.
+- **PHP 8.0 compatible.** osTicket 1.18 runs on PHP 8.1 upwards, 8.3 and 8.4 included since 1.18.2; the plugin stays one minor below that floor so it also runs on a 1.17 instance. No `match`, no enums, no readonly properties, no named arguments. CI enforces this by linting on 8.0, and `isCompatible()` refuses anything older.
 - **No new dependencies.** The plugin ships eight files and uses only `curl` from the PHP core. Keep it that way.
 - **No hardcoded hostnames, credentials, absolute paths, or customer data** — anywhere, including tests. Test credentials come from environment variables.
 - **Failures are generic to the client, specific to the log.** Cloudflare error codes, file paths, and stack traces must never reach the browser.
