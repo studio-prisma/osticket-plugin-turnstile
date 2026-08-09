@@ -1,0 +1,103 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # Weekly, Monday 06:00 UTC — catches PHP release drift and Cloudflare API changes.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: PHP Lint (${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.0", "8.1", "8.2", "8.3", "8.4"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl
+          coverage: none
+
+      - name: Syntax check all production files
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            php -l "$f" || fail=1
+          done < <(find . -name '*.php' -not -path './tests/*' -print0)
+          exit $fail
+
+  unit:
+    name: Unit + Fail-Mode
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: curl
+          coverage: none
+
+      - name: Unit tests
+        working-directory: tests
+        env:
+          PLUGIN_DIR: ${{ github.workspace }}
+        run: php unit.php
+
+      - name: Fail-mode tests
+        working-directory: tests
+        env:
+          PLUGIN_DIR: ${{ github.workspace }}
+        run: |
+          rm -rf failcopy && mkdir -p failcopy
+          cp -r ../src failcopy/
+          sed -i "s|const ENDPOINT = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';|const ENDPOINT = 'https://192.0.2.1/turnstile/v0/siteverify';|" \
+            failcopy/src/TurnstileVerifier.php
+          php failmode.php
+
+  integration:
+    name: Integration (php -S)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: curl
+          coverage: none
+
+      - name: Integration tests
+        working-directory: tests
+        env:
+          PLUGIN_DIR: ${{ github.workspace }}
+          PHP_BIN: php
+        run: python3 integration.py
+
+  actionlint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
