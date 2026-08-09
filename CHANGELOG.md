@@ -12,6 +12,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localisation of the admin UI strings (currently German only)
 - Optional allowlist for IPs that bypass the challenge
 
+## [1.0.2] - 2026-08-09
+
+### Fixed
+
+- Email intake was blocked whenever the Turnstile field sat on the ticket form.
+  `TurnstileSettings::currentArea()` returned `ticket` for every script except
+  `account.php`, so `validateEntry()` also ran during the mail fetcher's
+  `api/cron.php` pass, found no token, and called `addError()`. osTicket does
+  discard field errors for `origin = email` (`Ticket::create()`, `$field_filter`),
+  but `FormField::addError()` writes straight into the parent form's error list
+  as a side effect, and `Form::isValid()` returns `!$this->_errors` — the entry
+  is already there before the filter is consulted. Every incoming message was
+  counted and none was processed. Enforcement is now limited to the scripts that
+  can render the widget (`open.php`, `account.php`); everywhere else
+  `validateEntry()` returns without touching the error list. This restores the
+  boundary `SECURITY.md` already declared: email intake and the JSON API are out
+  of scope for this plugin.
+- The `DISABLED` kill switch took the whole helpdesk down instead of silencing
+  the plugin. The check sat before `FormField::addFieldTypes()`, so pulling it
+  unregistered the `turnstile` field type. With a form row of that type in
+  `ost_form_field`, every subsequent form instantiation died in
+  `FormField::getImpl()` with `Class name must be a valid object or a string` —
+  agent panel, customer portal, and mail import at once. The documented way out
+  of a lockout led into a full outage. The field type is now registered
+  unconditionally; `DISABLED` only suppresses verification and widget rendering.
+
+### Added
+
+- `TurnstileSettings::areaForScript()` — the enforcement allowlist as a pure,
+  publicly testable string decision, mirroring `TurnstileLoginGate::needsBuffer()`.
+- Tests: the `areaForScript()` allowlist table, regression group T10b (no error
+  is raised on `api/cron.php`, `api/http.php`, `ajax.php`, `scp/tickets.php`,
+  with a counter-check that `open.php` still enforces), and T13 covering the kill
+  switch (field type stays registered, no enforcement, widget renders nothing).
+
 ## [1.0.1] - 2026-08-09
 
 ### Fixed
@@ -88,6 +123,7 @@ First public release.
 - Installation guide with abort points, smoke test, and a ten-case security gate
   (English and German).
 
-[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/studio-prisma/osticket-plugin-turnstile/releases/tag/v1.0.0
