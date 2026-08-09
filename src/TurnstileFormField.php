@@ -26,14 +26,35 @@ class TurnstileFormField extends FormField
     {
         parent::validateEntry($value);
 
+        $area = TurnstileSettings::currentArea();
+
+        // Zuerst und ohne Ausnahme: Wo kein Widget rendern kann, wird nicht
+        // geprüft — und vor allem nicht addError() gerufen.
+        //
+        // Das ist keine Bequemlichkeit, sondern Pflicht. osTicket verwirft für
+        // origin='email' zwar alle Feldfehler (Ticket::create(), $field_filter),
+        // aber FormField::addError() schreibt per Seiteneffekt direkt in die
+        // Fehlerliste des Formulars (class.forms.php: $this->_form->addError()).
+        // Form::isValid() gibt am Ende schlicht !$this->_errors zurück — der
+        // Eintrag steht dort also schon, bevor der Filter überhaupt greift.
+        // Ein Fehler von hier lässt damit jeden Ticket-Import aus dem Postfach
+        // scheitern: Nachrichten werden gezählt, keine wird verarbeitet.
+        if ($area === '') {
+            return;
+        }
+
+        // Kill-Switch (DISABLED-Datei): Feldtyp bleibt registriert, damit die
+        // Formulare instanziierbar bleiben — geprüft wird trotzdem nicht.
+        if (TurnstileSettings::isKilled()) {
+            return;
+        }
+
         if (!TurnstileSettings::isLoaded()) {
             // Plugin nicht bootstrapped: kein stiller Pass.
             $this->addError('Die Sicherheitsprüfung ist nicht verfügbar. '
                 . 'Bitte wenden Sie sich an den Betreiber.');
             return;
         }
-
-        $area = TurnstileSettings::currentArea();
 
         // Break-Glass: Feld bleibt sichtbar, Prüfung wird nicht erzwungen.
         if (!TurnstileSettings::protects($area)) {
@@ -112,7 +133,7 @@ class TurnstileFieldWidget extends Widget
      */
     function render($options = array(), $extraConfig = false)
     {
-        if (!TurnstileSettings::isLoaded()) {
+        if (!TurnstileSettings::isLoaded() || TurnstileSettings::isKilled()) {
             return;
         }
 

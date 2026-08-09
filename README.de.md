@@ -77,7 +77,9 @@ Funktioniert ohne Datenbankzugriff, ohne Admin-Panel und auch dann, wenn du ausg
 touch include/plugins/turnstile/DISABLED
 ```
 
-`bootstrap()` bricht danach sofort ab — keine Prüfung, kein Widget, kein Output-Buffer. Zurücknehmen mit `rm`.
+Keine Prüfung, kein Widget, kein Output-Buffer. Zurücknehmen mit `rm`.
+
+Der Feldtyp `Cloudflare Turnstile` bleibt dabei registriert. Das ist Absicht: würde er abgemeldet, wäre jede Formularzeile dieses Typs unauflösbar, und osTicket stirbt danach in `FormField::getImpl()` bei jedem Formular, das es baut — Agenten-UI und Kundenportal eingeschlossen. Der Kill-Switch legt das Plugin still, er meldet es nicht ab.
 
 Weitere Rollback-Stufen: [INSTALL §8](docs/INSTALL.de.md#8-kill-switch-und-rollback).
 

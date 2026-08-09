@@ -20,6 +20,9 @@ dist/
 *.zip
 
 # Test artefacts
+# T13 legt DISABLED kurzzeitig an und raeumt es im finally wieder ab.
+# Ignoriert, damit ein abgebrochener Lauf die Datei nicht in einen Commit traegt.
+DISABLED
 tests/failcopy/
 tests/www/*.log
 __pycache__/

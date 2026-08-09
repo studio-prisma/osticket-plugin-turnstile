@@ -279,13 +279,17 @@ A core patch of `include/client/header.inc.php` is the last resort and is lost w
 touch include/plugins/turnstile/DISABLED
 ```
 
-`bootstrap()` aborts immediately afterwards. No verification, no widget, no output buffer. Undo with `rm`.
+No verification, no widget, no output buffer. Undo with `rm`.
+
+The `Cloudflare Turnstile` field type stays registered while the file is present — the kill switch silences the plugin, it does not unregister it. That distinction matters: see stage 4.
 
 **Stage 2 — disable a single area:** admin panel → plugin config → turn off the affected switch.
 
 **Stage 3 — change the fail mode:** during a prolonged Cloudflare outage, set `fail_mode` to `open`. Forms work again; spam protection is off for that period.
 
-**Stage 4 — remove completely:** disable and uninstall the plugin in the admin panel, then delete `include/plugins/turnstile/`. Remove the Turnstile field from the forms first, otherwise a field with an unknown type is left behind.
+**Stage 4 — remove completely:** remove the Turnstile field from every form **first** (Admin → Manage → Forms), then disable and uninstall the plugin in the admin panel, and only then delete `include/plugins/turnstile/`.
+
+> **Do not reverse this order.** Once the folder is gone, no plugin code runs, so the `turnstile` field type can no longer be resolved. Any row of that type left in `ost_form_field` makes `FormField::getImpl()` fatal with `Class name must be a valid object or a string`, and it fatals for *every* form osTicket builds: agent panel, customer portal, and ticket creation from email all return HTTP 500 at once. Recovery means putting the folder back, removing the field through the UI, and then deleting the folder — or editing the row out of the database. Use the `DISABLED` kill switch instead if you only want the plugin silenced; it leaves the field type registered.
 
 ---
 

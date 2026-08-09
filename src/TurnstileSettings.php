@@ -12,11 +12,29 @@ declare(strict_types=1);
  */
 final class TurnstileSettings
 {
+    /**
+     * Skripte, auf denen ein Formularfeld-Widget überhaupt rendern kann —
+     * und der Bereich, den sie bedienen.
+     *
+     * Alles andere kann prinzipbedingt kein Token mitliefern: api/cron.php
+     * (Mail-Abruf), api/http.php (JSON-API), ajax.php, scp/*, CLI. Dort darf
+     * nicht erzwungen werden. Siehe SECURITY.md, "Out of Scope": Mail-Eingang
+     * und JSON-API sind ausdrücklich nicht Aufgabe dieses Plugins.
+     */
+    const ENFORCE_SCRIPTS = array(
+        'open.php'    => 'ticket',
+        'account.php' => 'register',
+    );
+
     /** @var array|null */
     private static $data = null;
 
+    /** @var bool Kill-Switch: Erzwingung aus, Feldtyp bleibt registriert. */
+    private static $killed = false;
+
     public static function load(array $values)
     {
+        self::$killed = false;
         self::$data = array(
             'site_key'     => trim((string) ($values['cf_site_key'] ?? '')),
             'secret_key'   => trim((string) ($values['cf_secret_key'] ?? '')),
@@ -73,17 +91,58 @@ final class TurnstileSettings
     }
 
     /**
-     * Leitet den Schutzbereich aus dem laufenden Skript ab.
+     * Legt die Erzwingung still, ohne den Feldtyp abzumelden.
+     *
+     * Ein bootstrap(), das vor FormField::addFieldTypes() aussteigt, macht den
+     * Typ 'turnstile' unauflösbar. Jede Formular-Instanziierung stirbt dann in
+     * FormField::getImpl() ("Class name must be a valid object or a string") —
+     * Agenten-UI, Kundenportal und Mail-Import gleichermaßen. Der Kill-Switch
+     * darf also nur die Prüfung abschalten, nie die Registrierung.
+     */
+    public static function kill()
+    {
+        self::$killed = true;
+    }
+
+    public static function isKilled()
+    {
+        return self::$killed;
+    }
+
+    /**
+     * Reine Entscheidung aus einem Skriptpfad: Welcher Bereich wird hier
+     * bedient, und darf hier überhaupt erzwungen werden?
+     *
+     * Public und ohne $_SERVER-Zugriff, damit sie sich wie
+     * TurnstileLoginGate::needsBuffer() ohne Webserver testen lässt.
+     *
+     * @return string '' (nicht erzwingbar) | 'ticket' | 'register'
+     */
+    public static function areaForScript($scriptName)
+    {
+        $script = str_replace('\\', '/', (string) $scriptName);
+
+        if ($script === '') {
+            return '';
+        }
+
+        $base = basename($script);
+
+        return isset(self::ENFORCE_SCRIPTS[$base])
+            ? self::ENFORCE_SCRIPTS[$base]
+            : '';
+    }
+
+    /**
+     * Schutzbereich des laufenden Requests.
      * Wird von Formularfeldern genutzt, die selbst nicht wissen, wo sie stehen.
+     *
+     * '' bedeutet: hier kann kein Widget rendern, also wird auch nicht geprüft.
      */
     public static function currentArea()
     {
-        $script = isset($_SERVER['SCRIPT_NAME']) ? basename((string) $_SERVER['SCRIPT_NAME']) : '';
-
-        if ($script === 'account.php') {
-            return 'register';
-        }
-
-        return 'ticket';
+        return self::areaForScript(
+            isset($_SERVER['SCRIPT_NAME']) ? (string) $_SERVER['SCRIPT_NAME'] : ''
+        );
     }
 }
