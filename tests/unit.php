@@ -142,11 +142,20 @@ eq($c1['ok'],false,'nach resetCache greift wieder der echte Call');
 
 // ---------- T8: LoginGate ----------
 grp('T8 LoginGate');
+// detectArea() bekommt den Pfad übergeben statt ihn selbst aus $_SERVER zu
+// lesen. Einzige Stelle, die noch auf $_SERVER zugreift, ist scriptName().
 $rm=new ReflectionMethod('TurnstileLoginGate','detectArea'); $rm->setAccessible(true);
-$_SERVER['SCRIPT_NAME']='/scp/login.php'; eq($rm->invoke(null),'staff','detectArea scp/login.php');
-$_SERVER['SCRIPT_NAME']='/login.php';     eq($rm->invoke(null),'login','detectArea login.php');
-$_SERVER['SCRIPT_NAME']='/open.php';      eq($rm->invoke(null),'','detectArea open.php = kein Login');
-$_SERVER['SCRIPT_NAME']='/support/scp/login.php'; eq($rm->invoke(null),'staff','detectArea im Unterverzeichnis');
+eq($rm->invoke(null,'/scp/login.php'),'staff','detectArea scp/login.php');
+eq($rm->invoke(null,'/login.php'),'login','detectArea login.php');
+eq($rm->invoke(null,'/open.php'),'','detectArea open.php = kein Login');
+eq($rm->invoke(null,'/support/scp/login.php'),'staff','detectArea im Unterverzeichnis');
+eq($rm->invoke(null,''),'','detectArea ohne SCRIPT_NAME');
+
+$sn=new ReflectionMethod('TurnstileLoginGate','scriptName'); $sn->setAccessible(true);
+$_SERVER['SCRIPT_NAME']='\\scp\\login.php';
+eq($sn->invoke(null),'/scp/login.php','scriptName normalisiert Backslashes');
+eq($rm->invoke(null,$sn->invoke(null)),'staff','detectArea auf normalisiertem Windows-Pfad');
+$_SERVER['SCRIPT_NAME']='/open.php';
 
 $lk=new ReflectionMethod('TurnstileLoginGate','looksLikeLogin'); $lk->setAccessible(true);
 $_POST=[]; eq($lk->invoke(null),false,'leerer POST ist kein Login');
