@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Stated in both READMEs and both installation guides that the osTicket
+  **Required** flag must not be set on the Turnstile field. It protects nothing
+  — the plugin rejects an empty token locally as `missing` — but osTicket's own
+  required check in `FormField::validateEntry()` runs for every origin, and
+  `Ticket::create()` discards field errors only for `origin = email`. With the
+  flag set, `POST /api/tickets.json` fails with `… is a required field`,
+  surfaced as HTTP 500 because `include/api.tickets.php` maps validation errors
+  without an `errno` to 500. No payload can work around it: the token arrives as
+  `cf-turnstile-response`, not under the field's variable name.
+
 ### Planned
+
+- Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
+  break the API and agent channels in the first place
 
 - Localisation of the admin UI strings (currently German only)
 - Optional allowlist for IPs that bypass the challenge

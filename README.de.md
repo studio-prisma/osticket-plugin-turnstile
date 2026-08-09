@@ -62,10 +62,14 @@ Kurzfassung:
 3. Owner und Rechte an die Nachbarordner angleichen (Verzeichnisse `755`, Dateien `644`).
 4. Admin-Panel → **Manage → Plugins → Add New Plugin** → *Cloudflare Turnstile* → **Install**.
 5. Instanz anlegen, Site Key und Secret Key eintragen, vorerst **nur** das Gast-Ticketformular aktivieren.
-6. Admin-Panel → **Manage → Forms** → Feld vom Typ **Cloudflare Turnstile** an das Ticketformular hängen.
+6. Admin-Panel → **Manage → Forms** → Feld vom Typ **Cloudflare Turnstile** an das Ticketformular hängen. Den Haken **Required** nicht setzen — siehe Warnung unten.
 7. Smoke-Test fahren, bevor ein Login-Bereich aktiviert wird.
 
-> **Aussperr-Warnung.** Bevor du *Staff-Login* aktivierst: eine zweite, bereits eingeloggte Agenten-Session in einem anderen Browser offen halten. Rendert das Widget nicht, ist das dein Rettungsweg. Die Alternative ist der Kill-Switch.
+> **Den Haken *Required* am Turnstile-Feld nicht setzen.** Er schützt nichts und blockiert die anderen Kanäle.
+>
+> Das Plugin prüft das Token selbst und lehnt ein leeres ab — auf dem Webformular bringt der Haken also nichts. osTickets eigener Pflichtfeld-Check sitzt dagegen in `FormField::validateEntry()` und läuft bei jedem Origin, und `Ticket::create()` verwirft Feldfehler nur für `origin = email`; für die API und für Tickets, die Agenten anlegen, zählen sie. Mit gesetztem Haken scheitert `POST /api/tickets.json` an `Unable to create new ticket :<id> <label> is a required field` — ausgeliefert als **HTTP 500**, weil osTicket Validierungsfehler ohne `errno` auf 500 abbildet (`include/api.tickets.php`).
+>
+> Kein Payload umgeht das: das Token kommt als `cf-turnstile-response`, nicht unter dem Variablennamen des Feldes, und `to_database()` speichert bewusst nichts. Ein Kanal ohne Browser kann es prinzipbedingt nicht liefern — genau das meint `SECURITY.md` mit „Mail-Eingang und JSON-API sind out of scope".
 
 ---
 

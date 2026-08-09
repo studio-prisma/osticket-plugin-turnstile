@@ -194,9 +194,24 @@ Die drei Login-Bereiche bleiben aus, bis Schritt 6 grün ist. Das ist der Ausspe
 
 Admin-Panel → **Manage → Forms** → *Ticket Details* (bzw. das Formular des betroffenen Help Topics).
 
-*Add Field* → Typ **Cloudflare Turnstile** → Label z. B. „Sicherheitsprüfung" → ans Ende des Formulars → *Save Changes*.
+*Add Field* → Typ **Cloudflare Turnstile** → Label z. B. „Sicherheitsprüfung" → ans Ende des Formulars → **Haken *Required* nicht setzen** → *Save Changes*.
 
 Ohne diesen Schritt passiert auf `open.php` nichts. Der Feldtyp wird vom Plugin nur registriert, zugeordnet wird er manuell.
+
+> **Der Haken *Required* muss aus bleiben.** Er schützt nichts und blockiert die Ticketerstellung auf jedem Kanal, der kein Browser ist.
+>
+> Die Anwesenheit des Tokens erzwingt das Plugin bereits selbst: ein leeres Token geht gar nicht erst zu Cloudflare, es wird lokal als `missing` abgelehnt. Der osTicket-Haken ergänzt eine zweite, redundante Prüfung — die sitzt aber in `FormField::validateEntry()` und läuft bei jedem Origin. `Ticket::create()` verwirft Feldfehler nur für `origin = email`; für die API und für Tickets, die Agenten anlegen, zählen sie.
+>
+> Symptom mit gesetztem Haken:
+>
+> ```
+> POST /api/tickets.json → HTTP 500
+> Unable to create new ticket :48 Sicherheitsprüfung is a required field
+> ```
+>
+> Dass es ein 500er ist und kein 400er, liegt an osTicket, nicht am Plugin — `include/api.tickets.php` schließt seinen Fehlerpfad mit `exerr($errors['errno'] ?: 500, …)` ab, und Validierungsfehler tragen kein `errno`.
+>
+> Kein Payload repariert das. Das Token wird als `cf-turnstile-response` übermittelt, nicht unter dem Variablennamen des Feldes, und `to_database()` speichert bewusst nichts — es gibt also keinen Key, den ein API-Client setzen könnte. Das ist so gewollt und deckt sich mit `SECURITY.md`: Mail-Eingang und JSON-API sind für dieses Plugin out of scope.
 
 ---
 

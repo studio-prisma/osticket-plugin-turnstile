@@ -62,8 +62,14 @@ Short version:
 3. Match owner and permissions to the neighbouring plugin folders (`755` dirs, `644` files).
 4. Admin panel → **Manage → Plugins → Add New Plugin** → *Cloudflare Turnstile* → **Install**.
 5. Create an instance, enter the site key and secret key, enable **only** the guest ticket form for now.
-6. Admin panel → **Manage → Forms** → add a field of type **Cloudflare Turnstile** to the ticket form.
+6. Admin panel → **Manage → Forms** → add a field of type **Cloudflare Turnstile** to the ticket form. Leave **Required** unticked — see the warning below.
 7. Run the smoke test before enabling any login area.
+
+> **Do not tick *Required* on the Turnstile field.** It protects nothing and breaks the other channels.
+>
+> The plugin verifies the token itself and rejects an empty one, so the flag adds nothing on the web form. But osTicket's own required check lives in `FormField::validateEntry()` and runs for every origin, and `Ticket::create()` discards field errors only for `origin = email` — for the API and for agent-created tickets it keeps them. With the box ticked, `POST /api/tickets.json` fails with `Unable to create new ticket :<id> <label> is a required field`, returned as **HTTP 500** because osTicket maps validation errors without an `errno` to 500 (`include/api.tickets.php`).
+>
+> No payload can work around this: the token arrives as `cf-turnstile-response`, not under the field's variable name, and `to_database()` deliberately stores nothing. A channel without a browser cannot supply it by design — which is exactly what `SECURITY.md` means by email intake and the JSON API being out of scope.
 
 > **Lockout warning.** Before enabling *Staff login*, keep a second, already authenticated agent session open in a different browser. If the widget fails to render, that session is your way back in. The alternative is the kill switch below.
 

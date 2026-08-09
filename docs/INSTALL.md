@@ -194,9 +194,24 @@ The three login areas stay off until step 6 is green. That is the lockout protec
 
 Admin panel → **Manage → Forms** → *Ticket Details* (or the form of the affected help topic).
 
-*Add Field* → type **Cloudflare Turnstile** → label e.g. "Security check" → move to the end of the form → *Save Changes*.
+*Add Field* → type **Cloudflare Turnstile** → label e.g. "Security check" → move to the end of the form → **leave *Required* unticked** → *Save Changes*.
 
 Without this step, nothing happens on `open.php`. The plugin only registers the field type; assigning it is manual.
+
+> **The *Required* flag must stay off.** It protects nothing and breaks ticket creation on every channel that is not a browser.
+>
+> Presence of the token is already enforced by the plugin: an empty token never reaches Cloudflare, it is rejected locally as `missing`. The osTicket flag adds a second, redundant check — but that one lives in `FormField::validateEntry()` and runs for every origin. `Ticket::create()` discards field errors only for `origin = email`; for the API and for agent-created tickets it keeps them.
+>
+> Symptom when it is ticked:
+>
+> ```
+> POST /api/tickets.json → HTTP 500
+> Unable to create new ticket :48 Security check is a required field
+> ```
+>
+> The 500 rather than a 400 is osTicket's doing, not the plugin's — `include/api.tickets.php` ends its error path with `exerr($errors['errno'] ?: 500, …)`, and validation errors carry no `errno`.
+>
+> No payload fixes this. The token is submitted as `cf-turnstile-response`, not under the field's variable name, and `to_database()` deliberately stores nothing — so there is no key an API client could set. That is intentional and matches `SECURITY.md`: email intake and the JSON API are out of scope for this plugin.
 
 ---
 
