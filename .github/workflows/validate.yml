@@ -101,3 +101,25 @@ jobs:
 
       - name: actionlint
         uses: raven-actions/actionlint@v2
+
+  # Single aggregating context for the branch ruleset. Required-status-check names
+  # are job names, and the lint matrix produces one name per PHP version — those
+  # would have to be re-registered on every version bump. This job is the only
+  # context the ruleset knows about; the matrix can change freely underneath it.
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    needs: [lint, unit, integration, actionlint]
+    if: always()
+    steps:
+      - name: Fail unless every job succeeded
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        run: |
+          echo "lint=${{ needs.lint.result }}"
+          echo "unit=${{ needs.unit.result }}"
+          echo "integration=${{ needs.integration.result }}"
+          echo "actionlint=${{ needs.actionlint.result }}"
+          exit 1
