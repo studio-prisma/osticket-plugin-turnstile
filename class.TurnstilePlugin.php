@@ -15,7 +15,7 @@ declare(strict_types=1);
  *
  * Jeder Bereich ist in der Plugin-Config einzeln schaltbar.
  *
- * @see EINSPIELEN.md für Deployment, CSP und Kill-Switch
+ * @see docs/INSTALL.md für Deployment, CSP und Kill-Switch
  */
 
 require_once INCLUDE_DIR . 'class.plugin.php';
@@ -69,7 +69,7 @@ class TurnstilePlugin extends Plugin
         ));
 
         // Kill-Switch: Datei anlegen, um das Plugin ohne DB-Zugriff
-        // vollständig stillzulegen. Siehe EINSPIELEN.md.
+        // vollständig stillzulegen. Siehe docs/INSTALL.md, Abschnitt 8.
         if (file_exists(__DIR__ . '/DISABLED')) {
             error_log('[turnstile] disabled via DISABLED file');
             return;
@@ -110,7 +110,9 @@ class TurnstilePlugin extends Plugin
             return false;
         }
 
-        if (version_compare(PHP_VERSION, '7.4.0', '<')) {
+        // 8.0 ist der Floor, den CI lintet und CONTRIBUTING.md festschreibt.
+        // Ein niedrigeres Gate würde eine Laufzeit zulassen, die nie getestet wird.
+        if (version_compare(PHP_VERSION, '8.0.0', '<')) {
             return false;
         }
 
