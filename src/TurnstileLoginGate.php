@@ -49,10 +49,20 @@ final class TurnstileLoginGate
      * scp/login.php von 'login.php' mit abgedeckt ist.
      *
      *   login.php    Client-Login (Injektion)   + scp/login.php Staff-Login
+     *   tickets.php  Client-Login inline        (secure.inc.php bindet login.php ein)
+     *   profile.php  Client-Login inline        (dito)
      *   open.php     Gast-Ticketformular        (Formular-Builder-Feld, nur CSP)
      *   account.php  Client-Registrierung       (Formular-Builder-Feld, nur CSP)
      */
-    const BUFFER_SCRIPTS = array('login.php', 'open.php', 'account.php');
+    const BUFFER_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'open.php', 'account.php');
+
+    /**
+     * Client-Skripte, die das Login-Formular rendern können. tickets.php und
+     * profile.php laden secure.inc.php; das bindet für Abgemeldete login.php
+     * per require ein, ohne Redirect. SCRIPT_NAME bleibt dabei das aufrufende
+     * Skript, und die Login-Logik läuft trotzdem.
+     */
+    const CLIENT_LOGIN_SCRIPTS = array('login.php', 'tickets.php', 'profile.php');
 
     /** @var string '' | 'login' | 'staff' */
     private static $area = '';
@@ -71,7 +81,7 @@ final class TurnstileLoginGate
 
         $script = self::scriptName();
 
-        self::$area = self::detectArea($script);
+        self::$area = self::detectArea($script, $_POST);
 
         // Der CSP-Fix wird immer gebraucht, sobald irgendein Schutz aktiv ist —
         // auch auf open.php, wo das Formular-Builder-Feld rendert.
@@ -121,6 +131,12 @@ final class TurnstileLoginGate
             return false;
         }
 
+        // In scp/ rendert nur login.php ein Widget; scp/tickets.php ist die
+        // Ticketansicht der Agents und bleibt ungepuffert.
+        if (strpos($script, '/scp/') !== false) {
+            return basename($script) === 'login.php';
+        }
+
         return in_array(basename($script), self::BUFFER_SCRIPTS, true);
     }
 
@@ -128,9 +144,15 @@ final class TurnstileLoginGate
      * Leitet den Bereich aus dem laufenden Skript ab.
      * scp/login.php und login.php heissen beide "login.php" — der Pfad entscheidet.
      *
+     * Der Skriptname allein reicht nicht: jedes Client-Skript, das
+     * secure.inc.php lädt, führt für Abgemeldete die Login-Logik aus. Ein
+     * POST mit Client-Login-Feldern zählt deshalb überall außerhalb von
+     * scp/ und api/ als Login — sonst ginge er an tickets.php vorbei am Gate.
+     *
      * @param string $script Bereits normalisierter Pfad aus scriptName().
+     * @param mixed  $post   $_POST des Requests.
      */
-    private static function detectArea($script)
+    private static function detectArea($script, $post = array())
     {
         $script = (string) $script;
 
@@ -138,7 +160,15 @@ final class TurnstileLoginGate
             return 'staff';
         }
 
-        if (basename($script) === 'login.php') {
+        if (strpos($script, '/scp/') !== false || strpos($script, '/api/') !== false) {
+            return '';
+        }
+
+        if (in_array(basename($script), self::CLIENT_LOGIN_SCRIPTS, true)) {
+            return 'login';
+        }
+
+        if (is_array($post) && (isset($post['luser']) || isset($post['lpasswd']))) {
             return 'login';
         }
 
@@ -278,21 +308,34 @@ final class TurnstileLoginGate
             'action'  => self::$area === 'staff' ? 'staff-login' : 'client-login',
         ));
 
-        return self::injectIntoLoginForm($buffer, $markup);
+        // Client-Bereich: nur das Login-Formular (lpasswd), nicht etwa das
+        // Passwort-ändern-Formular auf profile.php.
+        $field = self::$area === 'login' ? 'lpasswd' : '';
+
+        return self::injectIntoLoginForm($buffer, $markup, $field);
     }
 
     /**
      * Fügt das Markup vor dem </form> des Formulars ein, das ein
      * Passwortfeld enthält. Andere Formulare der Seite bleiben unberührt.
+     *
+     * @param string $field Wenn gesetzt, muss das Formular ein Feld mit
+     *                      genau diesem name-Attribut enthalten.
      */
-    private static function injectIntoLoginForm($buffer, $markup)
+    private static function injectIntoLoginForm($buffer, $markup, $field = '')
     {
         $done = false;
 
         $result = preg_replace_callback(
             '#<form\b[^>]*>(.*?)</form>#is',
-            function ($m) use ($markup, &$done) {
+            function ($m) use ($markup, $field, &$done) {
                 if ($done) {
+                    return $m[0];
+                }
+
+                if ($field !== ''
+                    && !preg_match('#\bname\s*=\s*["\']?' . preg_quote($field, '#') . '["\'\s>/]#i', $m[1])
+                ) {
                     return $m[0];
                 }
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Closed a bypass of the client-login check. osTicket's `secure.inc.php` pulls
+  in `login.php` with `require` for logged-out visitors of `tickets.php` and
+  `profile.php`, so the login logic runs while `SCRIPT_NAME` still names the
+  calling script. The gate keyed on the script name and never saw a login POST
+  sent to `/tickets.php`. It now treats `tickets.php` and `profile.php` as login
+  pages, and any POST carrying `luser` or `lpasswd` outside `scp/` and `api/` as
+  a login attempt.
+
+### Fixed
+
+- The widget now also appears on the login form that `tickets.php` and
+  `profile.php` render inline. Before, that form posted to `login.php` without a
+  token and was rejected. On the client side the widget goes only into the form
+  holding `lpasswd`, not into the change-password form on `profile.php`.
+
 ### Documentation
 
 - Stated in both READMEs and both installation guides that the osTicket
