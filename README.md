@@ -19,7 +19,7 @@ Four areas, each toggled independently:
 |---|---|---|
 | Guest ticket form | `open.php` | Requires the Turnstile field to be added to the form (see [INSTALL](docs/INSTALL.md) step 5) |
 | Client registration | `account.php` | Requires the field on the *User Information* form |
-| Client login | `login.php` | Widget is injected into the rendered login form |
+| Client login | `login.php`, inline on `tickets.php` / `profile.php` | Widget is injected into the rendered login form; a login POST to any client script is checked |
 | Staff login | `scp/login.php` | Enable last — see the lockout warning below |
 
 Email intake and the JSON API are **not** covered. Turnstile is a browser mechanism; those channels need different controls.
@@ -100,7 +100,7 @@ Further rollback stages are documented in [INSTALL §8](docs/INSTALL.md#8-kill-s
 | Expected hostname | empty — **set it** | The `hostname` in the siteverify response must match. Left empty, a token minted on any other domain using the same widget is accepted |
 | Guest ticket form | on | Protects `open.php` |
 | Client registration | off | Protects `account.php` |
-| Client login | off | Protects `login.php` |
+| Client login | off | Protects the client login wherever it is posted |
 | Staff login | off | Protects `scp/login.php` |
 | Fail mode | `closed` | Behaviour when Cloudflare is unreachable: `closed` rejects, `open` lets through |
 | siteverify timeout | 5 s | Total cURL timeout, connect timeout included |
@@ -159,7 +159,7 @@ Details and the end-to-end setup: [tests/README.md](tests/README.md).
 - **No protection without JavaScript.** Without JS there is no token, and at `fail_mode = closed` that is a hard block. Keep an alternative channel (email ticket) open for accessibility — email intake is unaffected by this plugin.
 - **Email tickets and the API stay unprotected.** Spam via `api/tickets.json` or the mail pipe needs different controls.
 - **The login injection operates on rendered HTML.** It targets the first form containing a password field. An osTicket update that rebuilds the login templates can break this — re-run the login smoke tests after every osTicket update.
-- **The CSP rewrite is limited to four scripts:** `login.php`, `scp/login.php`, `open.php`, `account.php`. It runs inside an output-buffer callback, and a buffer over an attachment download would hold the whole file in memory — so the buffer is only started where a widget can appear. Attaching the field to a form rendered elsewhere means the widget is CSP-blocked there.
+- **The CSP rewrite is limited to six scripts:** `login.php`, `scp/login.php`, `tickets.php`, `profile.php`, `open.php`, `account.php`. It runs inside an output-buffer callback, and a buffer over an attachment download would hold the whole file in memory — so the buffer is only started where a widget can appear. Attaching the field to a form rendered elsewhere means the widget is CSP-blocked there.
 - **`CF-Connecting-IP` is forgeable** when the origin is reachable directly by IP. Harmless for the `remoteip` field of siteverify, which is purely informational, but do not build authorisation decisions on it.
 - **Browser execution of the AJAX fragment is not automatically verified.** The delivered markup and re-render hook are covered by tests; whether Cloudflare's `api.js` actually starts inside the fragment depends on how osTicket injects it. A bootstrap poller re-renders every 250 ms for 10 s as a safety net. Smoke test step 6.1 confirms it.
 - **The admin UI strings are German.** The code, documentation, and issue templates are English; the plugin configuration labels are not yet localised. Tracked as a follow-up.

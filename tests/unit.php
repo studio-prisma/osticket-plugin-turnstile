@@ -175,6 +175,18 @@ eq($rm->invoke(null,'/login.php'),'login','detectArea login.php');
 eq($rm->invoke(null,'/open.php'),'','detectArea open.php = kein Login');
 eq($rm->invoke(null,'/support/scp/login.php'),'staff','detectArea im Unterverzeichnis');
 eq($rm->invoke(null,''),'','detectArea ohne SCRIPT_NAME');
+// Regression: secure.inc.php bindet login.php per require ein, SCRIPT_NAME
+// bleibt das aufrufende Skript. Ein Login-POST an tickets.php lief am Gate vorbei.
+$lp=['luser'=>'a','lpasswd'=>'b'];
+eq($rm->invoke(null,'/tickets.php'),'login','detectArea tickets.php (Login inline)');
+eq($rm->invoke(null,'/profile.php'),'login','detectArea profile.php (Login inline)');
+eq($rm->invoke(null,'/tickets.php',$lp),'login','Login-POST an tickets.php wird geprüft');
+eq($rm->invoke(null,'/view.php',$lp),'login','Login-POST an beliebiges Client-Skript wird geprüft');
+eq($rm->invoke(null,'/support/open.php',['lpasswd'=>'b']),'login','lpasswd allein reicht');
+eq($rm->invoke(null,'/open.php',['email'=>'a@b.de']),'','Ticket-POST ohne Login-Felder bleibt unberührt');
+eq($rm->invoke(null,'/scp/tickets.php',$lp),'','scp/ bleibt Staff-Sache');
+eq($rm->invoke(null,'/api/http.php',$lp),'','api/ wird nie als Login gewertet');
+eq($rm->invoke(null,'/view.php','kein-array'),'','POST ohne Array wird ignoriert');
 
 $sn=new ReflectionMethod('TurnstileLoginGate','scriptName'); $sn->setAccessible(true);
 $_SERVER['SCRIPT_NAME']='\\scp\\login.php';
@@ -207,6 +219,15 @@ $sq="<form><input type='password' name='p'></form>";
 ok(strpos($inj->invoke(null,$sq,$M),$M)!==false,'einfache Anführungszeichen werden erkannt');
 $uq='<form><input type=password name=p></form>';
 ok(strpos($inj->invoke(null,$uq,$M),$M)!==false,'Attribut ohne Anführungszeichen wird erkannt');
+// Client-Bereich: nur das Formular mit lpasswd, nicht das Passwort-ändern-Formular.
+$prof='<form action="profile.php"><input type="password" name="cpasswd"></form>';
+eq($inj->invoke(null,$prof,$M,'lpasswd'),$prof,'Passwort-ändern-Formular bekommt kein Widget');
+$both=$prof.'<form action="login.php"><input type="password" name="lpasswd"></form>';
+$out=$inj->invoke(null,$both,$M,'lpasswd');
+eq(substr_count($out,$M),1,'mit Feldfilter genau einmal injiziert');
+ok(strpos(substr($out,strpos($out,'login.php')),$M)!==false,'Widget landet im Login-Formular, nicht im Profil');
+$npw='<form><input type="password" name="lpasswd2"></form>';
+eq($inj->invoke(null,$npw,$M,'lpasswd'),$npw,'Feldfilter matcht den Namen exakt');
 
 // ---------- T9: CSP ----------
 grp('T9 CSP-Rewrite');
@@ -308,7 +329,11 @@ $bufCases = [
   ['/scp/file.php',         false, 'Attachment-Download Staff'],
   ['/ajax.php',             false, 'AJAX-Endpoint'],
   ['/scp/index.php',        false, 'Staff-Dashboard'],
-  ['/tickets.php',          false, 'Client-Ticketansicht'],
+  ['/tickets.php',          true,  'Client-Ticketansicht (Login inline)'],
+  ['/profile.php',          true,  'Client-Profil (Login inline)'],
+  ['/scp/tickets.php',      false, 'Staff-Ticketansicht: in scp/ nur login.php'],
+  ['/scp/profile.php',      false, 'Staff-Profil'],
+  ['/view.php',             false, 'Zugangslink-Ansicht'],
   ['/',                     false, 'Verzeichnis ohne Skript'],
   ['',                      false, 'leerer SCRIPT_NAME'],
 ];
