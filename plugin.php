@@ -14,6 +14,7 @@ return array(
     'ost_version' => '1.18',
     'name'        => 'Cloudflare Turnstile',
     'author'      => 'Studio Prisma',
+    'url'         => 'https://github.com/studio-prisma/osticket-plugin-turnstile',
     'description' => 'Cloudflare Turnstile als CAPTCHA für Gast-Ticketformular, '
                    . 'Client-Registrierung, Client-Login und Staff-Login. '
                    . 'Serverseitige Token-Validierung via siteverify, konfigurierbarer Fail-Mode.',
