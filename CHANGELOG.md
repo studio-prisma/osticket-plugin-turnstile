@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
+  break the API and agent channels in the first place
+- Cover the ticket access-link form (`lemail`/`lticket` on `view.php`), which
+  needs the widget there before the token can be required
+- Localisation of the admin UI strings (currently German only)
+- Optional allowlist for IPs that bypass the challenge
+
+## [1.0.3] - 2026-10-26
+
+A security release. A client login posted to `tickets.php` instead of
+`login.php` reached osTicket's login logic without a Turnstile token. Update if
+the client-login protection is on.
+
 ### Security
 
 - Closed a bypass of the client-login check. osTicket's `secure.inc.php` pulls
@@ -24,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   token and was rejected. On the client side the widget goes only into the form
   holding `lpasswd`, not into the change-password form on `profile.php`.
 
+### Changed
+
+- `plugin.php` carries the repository `url`. osTicket links it in the plugin
+  list, and its Plugin Update Check resolves the repository from this field;
+  without it, installations could not check for releases.
+- The release workflow reads the tag from `env` and accepts `vX.Y.Z` and
+  `vX.Y.Z-rc.N` only, instead of expanding the tag input straight into shell
+  code.
+
 ### Documentation
 
 - Stated in both READMEs and both installation guides that the osTicket
@@ -35,14 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   surfaced as HTTP 500 because `include/api.tickets.php` maps validation errors
   without an `errno` to 500. No payload can work around it: the token arrives as
   `cf-turnstile-response`, not under the field's variable name.
-
-### Planned
-
-- Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
-  break the API and agent channels in the first place
-
-- Localisation of the admin UI strings (currently German only)
-- Optional allowlist for IPs that bypass the challenge
 
 ## [1.0.2] - 2026-08-09
 
@@ -155,7 +171,8 @@ First public release.
 - Installation guide with abort points, smoke test, and a ten-case security gate
   (English and German).
 
-[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/studio-prisma/osticket-plugin-turnstile/releases/tag/v1.0.0
