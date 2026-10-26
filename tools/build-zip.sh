@@ -35,7 +35,16 @@ fi
 
 mkdir -p dist
 rm -f "dist/turnstile-${VERSION}.zip"
-( cd "$STAGE" && zip -qr "turnstile-${VERSION}.zip" turnstile )
+# Reproducible archive: every file gets the commit date, entries are sorted,
+# no extra fields. Building the same commit twice yields the same bytes, so a
+# rebuilt release keeps its checksum and its provenance attestation.
+EPOCH="$(git log -1 --format=%ct 2>/dev/null || true)"
+if [ -z "$EPOCH" ]; then
+  EPOCH="$(date +%s)"
+  echo "Note: not a git checkout, using the current time for file dates." >&2
+fi
+find "$STAGE" -exec touch -d "@$EPOCH" {} +
+( cd "$STAGE" && find turnstile -type f | LC_ALL=C sort | TZ=UTC zip -X -q "turnstile-${VERSION}.zip" -@ )
 mv "$STAGE/turnstile-${VERSION}.zip" "dist/"
 
 echo "Built dist/turnstile-${VERSION}.zip"
