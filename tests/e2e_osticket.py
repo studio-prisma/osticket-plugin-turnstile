@@ -12,6 +12,14 @@ ENV=dict(os.environ,LD_LIBRARY_PATH=f'{HOME}/w/mdb/usr/lib/x86_64-linux-gnu')
 DUMMY='XXXX.DUMMY.TOKEN.XXXX'
 PASS_SEC='1x0000000000000000000000000000000AA'; FAIL_SEC='2x0000000000000000000000000000000AA'
 P=F=0
+def script_sources(csp):
+    """Sources of the script-src directive, one list entry per source."""
+    for directive in csp.split(';'):
+        parts = directive.split()
+        if parts and parts[0] == 'script-src':
+            return parts[1:]
+    return []
+
 def chk(c,n,x=''):
     global P,F
     if c: P+=1; print(f'  PASS  {n}')
@@ -44,7 +52,7 @@ try:
     # sie kommen erst per ajax.php nach Wahl des Help Topics (siehe B).
     chk('Issue Summary' not in b,'osTicket liefert die Ticketfelder erwartungsgemäß noch nicht mit')
     csp=h.get('Content-Security-Policy','')
-    chk('challenges.cloudflare.com' in csp,'CSP von osTicket wurde erweitert',csp[:120])
+    chk('https://challenges.cloudflare.com' in script_sources(csp),'CSP von osTicket wurde erweitert',csp[:120])
     chk("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com" in csp,'genau in script-src',csp[:160])
     m=re.search(r'name="__CSRFToken__"\s+value="([^"]+)"',b) or re.search(r'value="([^"]+)"[^>]*name="__CSRFToken__"',b)
     csrf=m.group(1) if m else None
@@ -105,7 +113,7 @@ try:
     chk(st==200,'GET scp/login.php 200',st)
     chk('cf-turnstile' in b6,'Widget im echten Staff-Login-Template')
     csp6=h.get('Content-Security-Policy','')
-    chk('challenges.cloudflare.com' in csp6,'CSP auch auf login.header.php erweitert',csp6[:120])
+    chk('https://challenges.cloudflare.com' in script_sources(csp6),'CSP auch auf login.header.php erweitert',csp6[:120])
     st,h,b7=go('/scp/login.php',{'ajax':'1','userid':STAFF_USER,'username':STAFF_USER,'passwd':STAFF_PASS},
                {'X-Requested-With':'XMLHttpRequest'})
     chk(st==403,'AJAX-Login ohne Token -> 403',st)

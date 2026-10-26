@@ -4,6 +4,14 @@ DUMMY='XXXX.DUMMY.TOKEN.XXXX'
 PASS_SEC='1x0000000000000000000000000000000AA'
 FAIL_SEC='2x0000000000000000000000000000000AA'
 ok_n=fail_n=0
+def script_sources(csp):
+    """Sources of the script-src directive, one list entry per source."""
+    for directive in csp.split(';'):
+        parts = directive.split()
+        if parts and parts[0] == 'script-src':
+            return parts[1:]
+    return []
+
 def chk(c,name,extra=''):
     global ok_n,fail_n
     if c: ok_n+=1; print(f'  PASS  {name}')
@@ -44,7 +52,7 @@ try:
     chk(li<wi,'Widget steht im Login-Formular, nicht im Suchformular',f'login@{li} widget@{wi} search@{si}')
     chk(b.find('</form>',wi)>wi,'Widget vor dem schließenden </form>')
     csp=h.get('Content-Security-Policy','')
-    chk('challenges.cloudflare.com' in csp,'CSP-Header enthält Cloudflare-Origin',csp)
+    chk('https://challenges.cloudflare.com' in script_sources(csp),'CSP-Header enthält Cloudflare-Origin in script-src',csp)
     chk("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com" in csp,'genau in script-src',csp)
     chk('frame-src' not in csp,'kein frame-src hinzugefügt')
     chk(csp.count('Content-Security-Policy')==0 and 'object-src' in csp,'übrige Direktiven erhalten',csp)
