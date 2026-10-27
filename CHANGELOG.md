@@ -7,12 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The ticket access-link form (email + ticket number) is now covered by the
+  client-login protection. osTicket treats the ticket number there like a
+  password (`UserAuthenticationBackend::process($lemail, $lticket)`) and sends
+  an access link on success, so without a check ticket numbers could be
+  guessed and mails triggered at will. A POST with `lticket` outside `scp/`
+  and `api/` now needs a token, and the widget appears in the access-link
+  form on `login.php` and `view.php`.
+
+### Changed
+
+- **License: GNU General Public License, version 2 or later**, instead of MIT.
+  The plugin extends osTicket classes (`Plugin`, `PluginConfig`, `FormField`,
+  `Widget`), and osTicket is GPL-2.0. Releases up to and including 1.0.3 stay
+  available under MIT.
+
 ### Planned
 
 - Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
   break the API and agent channels in the first place
-- Cover the ticket access-link form (`lemail`/`lticket` on `view.php`), which
-  needs the widget there before the token can be required
 - Localisation of the admin UI strings (currently German only)
 - Optional allowlist for IPs that bypass the challenge
 

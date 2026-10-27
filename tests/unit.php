@@ -186,7 +186,11 @@ eq($rm->invoke(null,'/support/open.php',['lpasswd'=>'b']),'login','lpasswd allei
 eq($rm->invoke(null,'/open.php',['email'=>'a@b.de']),'','Ticket-POST ohne Login-Felder bleibt unberührt');
 eq($rm->invoke(null,'/scp/tickets.php',$lp),'','scp/ bleibt Staff-Sache');
 eq($rm->invoke(null,'/api/http.php',$lp),'','api/ wird nie als Login gewertet');
-eq($rm->invoke(null,'/view.php','kein-array'),'','POST ohne Array wird ignoriert');
+eq($rm->invoke(null,'/view.php','kein-array'),'login','view.php ist Login-Bereich (Zugangslink-Formular)');
+eq($rm->invoke(null,'/open.php','kein-array'),'','POST ohne Array wird ignoriert');
+// Zugangslink: lemail + lticket, die Ticketnummer wirkt wie ein Passwort.
+eq($rm->invoke(null,'/open.php',['lemail'=>'a@b.de','lticket'=>'123456']),'login','Zugangslink-POST an beliebiges Client-Skript wird geprüft');
+eq($rm->invoke(null,'/scp/index.php',['lticket'=>'1']),'','lticket in scp/ zählt nicht');
 
 $sn=new ReflectionMethod('TurnstileLoginGate','scriptName'); $sn->setAccessible(true);
 $_SERVER['SCRIPT_NAME']='\\scp\\login.php';
@@ -199,6 +203,8 @@ $_POST=[]; eq($lk->invoke(null),false,'leerer POST ist kein Login');
 $_POST=['luser'=>'a','lpasswd'=>'b']; eq($lk->invoke(null),true,'Client-Login erkannt');
 $_POST=['username'=>'a','passwd'=>'b']; eq($lk->invoke(null),true,'Staff-Login erkannt');
 $_POST=['email'=>'a@b.de']; eq($lk->invoke(null),false,'Passwort-vergessen ist kein Login');
+$_POST=['lemail'=>'a@b.de','lticket'=>'123456']; eq($lk->invoke(null),true,'Zugangslink erkannt');
+$_POST=['lemail'=>'a@b.de']; eq($lk->invoke(null),false,'lemail allein ist kein Login');
 $_POST=[];
 
 $inj=new ReflectionMethod('TurnstileLoginGate','injectIntoLoginForm'); $inj->setAccessible(true);
@@ -228,6 +234,15 @@ eq(substr_count($out,$M),1,'mit Feldfilter genau einmal injiziert');
 ok(strpos(substr($out,strpos($out,'login.php')),$M)!==false,'Widget landet im Login-Formular, nicht im Profil');
 $npw='<form><input type="password" name="lpasswd2"></form>';
 eq($inj->invoke(null,$npw,$M,'lpasswd'),$npw,'Feldfilter matcht den Namen exakt');
+// Zugangslink-Formular (accesslink.inc.php): kein Passwortfeld, aber lticket.
+$acc='<form action="login.php" method="post" id="clientLogin"><input type="text" name="lemail">'
+    . '<input id="ticketno" type="text" name="lticket"><input type="submit"></form>';
+$CF=['lpasswd','lticket'];
+ok(strpos($inj->invoke(null,$acc,$M,$CF),$M)!==false,'Zugangslink-Formular bekommt das Widget');
+ok(strpos($inj->invoke(null,$page,$M,$CF),$M)!==false,'Passwort-Login weiterhin mit Feldliste');
+eq($inj->invoke(null,$prof,$M,$CF),$prof,'Profil-Formular auch mit Feldliste ohne Widget');
+eq(substr_count($inj->invoke(null,$acc.$acc,$M,$CF),$M),1,'auch mit Feldliste nur einmal injiziert');
+eq($inj->invoke(null,$acc,$M),$acc,'ohne Feldliste (Staff) braucht es ein Passwortfeld');
 
 // ---------- T9: CSP ----------
 grp('T9 CSP-Rewrite');
@@ -333,7 +348,7 @@ $bufCases = [
   ['/profile.php',          true,  'Client-Profil (Login inline)'],
   ['/scp/tickets.php',      false, 'Staff-Ticketansicht: in scp/ nur login.php'],
   ['/scp/profile.php',      false, 'Staff-Profil'],
-  ['/view.php',             false, 'Zugangslink-Ansicht'],
+  ['/view.php',             true,  'Zugangslink-Formular'],
   ['/',                     false, 'Verzeichnis ohne Skript'],
   ['',                      false, 'leerer SCRIPT_NAME'],
 ];
