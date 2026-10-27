@@ -80,4 +80,4 @@ Maintainers only:
 
 ## License
 
-By contributing you agree that your contribution is licensed under the [MIT License](LICENSE).
+By contributing you agree that your contribution is licensed under the [GNU General Public License, version 2 or later](LICENSE).

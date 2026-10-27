@@ -1,7 +1,7 @@
 # Cloudflare Turnstile für osTicket
 
 [![Validate](https://github.com/studio-prisma/osticket-plugin-turnstile/actions/workflows/validate.yml/badge.svg)](https://github.com/studio-prisma/osticket-plugin-turnstile/actions/workflows/validate.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v2+](https://img.shields.io/badge/License-GPL_v2%2B-blue.svg)](LICENSE)
 [![osTicket 1.18.x](https://img.shields.io/badge/osTicket-1.18.x-1c4e80.svg)](https://osticket.com/)
 [![PHP 8.0–8.4](https://img.shields.io/badge/PHP-8.0%E2%80%938.4-777bb4.svg)](https://www.php.net/)
 
@@ -19,7 +19,7 @@ Vier Bereiche, jeder einzeln schaltbar:
 |---|---|---|
 | Gast-Ticketformular | `open.php` | Turnstile-Feld muss dem Formular zugeordnet werden (siehe [INSTALL](docs/INSTALL.de.md) Schritt 5) |
 | Client-Registrierung | `account.php` | Feld zusätzlich dem Formular *User Information* zuordnen |
-| Client-Login | `login.php`, inline auf `tickets.php` / `profile.php` | Widget wird in das gerenderte Login-Formular injiziert; ein Login-POST an jedes Client-Skript wird geprüft |
+| Client-Login | `login.php`, inline auf `tickets.php` / `profile.php`, Zugangslink auf `view.php` | Widget wird in das Login- und das Zugangslink-Formular injiziert; ein Login- oder Zugangslink-POST an jedes Client-Skript wird geprüft |
 | Staff-Login | `scp/login.php` | Zuletzt aktivieren — siehe Aussperr-Warnung |
 
 Mail-Eingang und die JSON-API sind **nicht** abgedeckt. Turnstile ist ein Browser-Mechanismus; diese Kanäle brauchen andere Maßnahmen.
@@ -157,7 +157,7 @@ Details und E2E-Setup: [tests/README.md](tests/README.md).
 - **Kein Schutz ohne JavaScript.** Ohne JS gibt es kein Token, und bei `fail_mode = closed` ist das eine harte Sperre. Für Barrierefreiheit einen alternativen Kanal (E-Mail-Ticket) offenhalten — der Mail-Eingang ist von diesem Plugin nicht betroffen.
 - **E-Mail-Tickets und die API bleiben ungeschützt.** Spam über `api/tickets.json` oder den Mail-Pipe braucht andere Maßnahmen.
 - **Die Login-Injektion arbeitet auf dem gerenderten HTML.** Sie sucht das erste Formular mit einem Passwortfeld. Ein osTicket-Update, das die Login-Templates umbaut, kann das brechen — nach jedem osTicket-Update die Login-Smoke-Tests erneut fahren.
-- **Der CSP-Rewrite ist auf sechs Skripte begrenzt:** `login.php`, `scp/login.php`, `tickets.php`, `profile.php`, `open.php`, `account.php`. Er läuft in einem Output-Buffer-Callback, und ein Buffer über einem Attachment-Download würde die ganze Datei im Speicher halten — der Buffer startet deshalb nur dort, wo ein Widget auftauchen kann. Hängt das Feld an einem anderswo gerenderten Formular, wird das Widget dort per CSP blockiert.
+- **Der CSP-Rewrite ist auf sieben Skripte begrenzt:** `login.php`, `scp/login.php`, `tickets.php`, `profile.php`, `view.php`, `open.php`, `account.php`. Er läuft in einem Output-Buffer-Callback, und ein Buffer über einem Attachment-Download würde die ganze Datei im Speicher halten — der Buffer startet deshalb nur dort, wo ein Widget auftauchen kann. Hängt das Feld an einem anderswo gerenderten Formular, wird das Widget dort per CSP blockiert.
 - **`CF-Connecting-IP` ist fälschbar**, wenn der Origin unter seiner IP direkt erreichbar ist. Für das rein informative `remoteip`-Feld bei siteverify folgenlos, aber keine Autorisierungsentscheidung darauf bauen.
 - **Die Ausführung des AJAX-Fragments im Browser ist nicht automatisiert verifiziert.** Ausgeliefertes Markup und Re-Render-Hook sind getestet; ob Cloudflares `api.js` im Fragment tatsächlich anläuft, hängt davon ab, wie osTicket es einhängt. Ein Bootstrap-Poller rendert 10 s lang alle 250 ms nach. Smoke-Test 6.1 bestätigt es.
 - **Die Admin-UI ist auf Deutsch.** Code, Dokumentation und Issue-Templates sind Englisch; die Labels der Plugin-Konfiguration sind noch nicht lokalisiert. Als Folgeaufgabe vorgemerkt.

@@ -51,18 +51,27 @@ final class TurnstileLoginGate
      *   login.php    Client-Login (Injektion)   + scp/login.php Staff-Login
      *   tickets.php  Client-Login inline        (secure.inc.php bindet login.php ein)
      *   profile.php  Client-Login inline        (dito)
+     *   view.php     Zugangslink-Formular       (E-Mail + Ticketnummer, postet an login.php)
      *   open.php     Gast-Ticketformular        (Formular-Builder-Feld, nur CSP)
      *   account.php  Client-Registrierung       (Formular-Builder-Feld, nur CSP)
      */
-    const BUFFER_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'open.php', 'account.php');
+    const BUFFER_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'view.php', 'open.php', 'account.php');
 
     /**
-     * Client-Skripte, die das Login-Formular rendern können. tickets.php und
-     * profile.php laden secure.inc.php; das bindet für Abgemeldete login.php
-     * per require ein, ohne Redirect. SCRIPT_NAME bleibt dabei das aufrufende
-     * Skript, und die Login-Logik läuft trotzdem.
+     * Client-Skripte, die ein Login- oder Zugangslink-Formular rendern können.
+     * tickets.php und profile.php laden secure.inc.php; das bindet für
+     * Abgemeldete login.php per require ein, ohne Redirect. SCRIPT_NAME bleibt
+     * dabei das aufrufende Skript, und die Login-Logik läuft trotzdem.
+     * view.php zeigt das Zugangslink-Formular (accesslink.inc.php).
      */
-    const CLIENT_LOGIN_SCRIPTS = array('login.php', 'tickets.php', 'profile.php');
+    const CLIENT_LOGIN_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'view.php');
+
+    /**
+     * Felder, an denen ein Client-Formular als Anmeldung erkannt wird:
+     * lpasswd im Passwort-Login, lticket im Zugangslink (E-Mail + Ticketnummer).
+     * Die Ticketnummer wirkt dort wie ein Passwort.
+     */
+    const CLIENT_LOGIN_FIELDS = array('lpasswd', 'lticket');
 
     /** @var string '' | 'login' | 'staff' */
     private static $area = '';
@@ -168,7 +177,9 @@ final class TurnstileLoginGate
             return 'login';
         }
 
-        if (is_array($post) && (isset($post['luser']) || isset($post['lpasswd']))) {
+        if (is_array($post)
+            && (isset($post['luser']) || isset($post['lpasswd']) || isset($post['lticket']))
+        ) {
             return 'login';
         }
 
@@ -211,11 +222,12 @@ final class TurnstileLoginGate
 
     /**
      * Heuristik: enthält der POST Login-Felder?
-     * osTicket nutzt luser/lpasswd (Client) bzw. username/passwd (Staff).
+     * osTicket nutzt luser/lpasswd (Client), lemail/lticket (Zugangslink)
+     * bzw. username/passwd (Staff).
      */
     private static function looksLikeLogin()
     {
-        foreach (array('lpasswd', 'passwd', 'password') as $key) {
+        foreach (array('lpasswd', 'lticket', 'passwd', 'password') as $key) {
             if (isset($_POST[$key])) {
                 return true;
             }
@@ -308,35 +320,49 @@ final class TurnstileLoginGate
             'action'  => self::$area === 'staff' ? 'staff-login' : 'client-login',
         ));
 
-        // Client-Bereich: nur das Login-Formular (lpasswd), nicht etwa das
-        // Passwort-ändern-Formular auf profile.php.
-        $field = self::$area === 'login' ? 'lpasswd' : '';
+        // Client-Bereich: nur das Login- oder Zugangslink-Formular, nicht etwa
+        // das Passwort-ändern-Formular auf profile.php.
+        $fields = self::$area === 'login' ? self::CLIENT_LOGIN_FIELDS : array();
 
-        return self::injectIntoLoginForm($buffer, $markup, $field);
+        return self::injectIntoLoginForm($buffer, $markup, $fields);
     }
 
     /**
-     * Fügt das Markup vor dem </form> des Formulars ein, das ein
-     * Passwortfeld enthält. Andere Formulare der Seite bleiben unberührt.
+     * Fügt das Markup vor dem </form> des ersten passenden Formulars ein.
+     * Andere Formulare der Seite bleiben unberührt.
      *
-     * @param string $field Wenn gesetzt, muss das Formular ein Feld mit
-     *                      genau diesem name-Attribut enthalten.
+     * @param string|array $fields Ohne Angabe: das Formular mit einem
+     *                             Passwortfeld. Mit Angabe: das Formular, das
+     *                             ein Feld mit genau einem dieser
+     *                             name-Attribute enthält.
      */
-    private static function injectIntoLoginForm($buffer, $markup, $field = '')
+    private static function injectIntoLoginForm($buffer, $markup, $fields = array())
     {
         $done = false;
+        $fields = array_values(array_filter((array) $fields, 'strlen'));
 
         $result = preg_replace_callback(
             '#<form\b[^>]*>(.*?)</form>#is',
-            function ($m) use ($markup, $field, &$done) {
+            function ($m) use ($markup, $fields, &$done) {
                 if ($done) {
                     return $m[0];
                 }
 
-                if ($field !== ''
-                    && !preg_match('#\bname\s*=\s*["\']?' . preg_quote($field, '#') . '["\'\s>/]#i', $m[1])
-                ) {
-                    return $m[0];
+                if ($fields) {
+                    $matched = false;
+                    foreach ($fields as $field) {
+                        if (preg_match('#\bname\s*=\s*["\']?' . preg_quote($field, '#') . '["\'\s>/]#i', $m[1])) {
+                            $matched = true;
+                            break;
+                        }
+                    }
+                    if (!$matched) {
+                        return $m[0];
+                    }
+
+                    $done = true;
+
+                    return substr($m[0], 0, -7) . $markup . '</form>';
                 }
 
                 if (stripos($m[1], 'type="password"') === false
