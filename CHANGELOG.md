@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
+  break the API and agent channels in the first place
+- Localisation of the admin UI strings (currently German only)
+- Optional allowlist for IPs that bypass the challenge
+
+## [1.1.0] - 2026-10-27
+
+Extends the client-login protection to the ticket access-link form and
+moves the plugin to the GNU General Public License, version 2 or later.
+
 ### Security
 
 - The ticket access-link form (email + ticket number) is now covered by the
@@ -23,13 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The plugin extends osTicket classes (`Plugin`, `PluginConfig`, `FormField`,
   `Widget`), and osTicket is GPL-2.0. Releases up to and including 1.0.3 stay
   available under MIT.
-
-### Planned
-
-- Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot
-  break the API and agent channels in the first place
-- Localisation of the admin UI strings (currently German only)
-- Optional allowlist for IPs that bypass the challenge
 
 ## [1.0.3] - 2026-10-26
 
@@ -186,7 +191,8 @@ First public release.
 - Installation guide with abort points, smoke test, and a ten-case security gate
   (English and German).
 
-[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/studio-prisma/osticket-plugin-turnstile/compare/v1.0.0...v1.0.1

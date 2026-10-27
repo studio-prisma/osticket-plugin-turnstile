@@ -10,7 +10,7 @@
 
 return array(
     'id'          => 'studio-prisma:turnstile',
-    'version'     => '1.0.3',
+    'version'     => '1.1.0',
     'ost_version' => '1.18',
     'name'        => 'Cloudflare Turnstile',
     'author'      => 'Studio Prisma',
