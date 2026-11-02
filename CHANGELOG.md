@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `LICENSE` contains only the GPL-2.0 text, so GitHub detects the licence. The
+  README now states that releases up to 1.0.3 remain available under MIT.
+
 ### Planned
 
 - Make `TurnstileFormField` immune to the `Required` flag, so the setting cannot

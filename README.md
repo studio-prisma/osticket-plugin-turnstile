@@ -178,4 +178,4 @@ Security issues: **do not open a public issue.** See [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE) © studio-prisma
+[GPL-2.0-or-later](LICENSE) © studio-prisma. The plugin extends osTicket's GPL classes, so it carries osTicket's licence. Releases up to and including 1.0.3 were published under the MIT License and remain available under it.
