@@ -245,32 +245,37 @@ final class TurnstileVerifier
         return null;
     }
 
+    private const MSG_EXPIRED = 'Die Sicherheitsprüfung ist abgelaufen. '
+        . 'Bitte laden Sie die Seite neu und versuchen Sie es erneut.';
+    private const MSG_MISSING = 'Bitte bestätigen Sie die Sicherheitsprüfung.';
+    // Konfigurationsfehler auf unserer Seite — Detail nur ins Log.
+    private const MSG_CONFIG = 'Die Sicherheitsprüfung ist nicht korrekt konfiguriert. '
+        . 'Bitte wenden Sie sich an den Betreiber.';
+    private const MSG_DEFAULT = 'Die Sicherheitsprüfung war nicht erfolgreich. Bitte versuchen Sie es erneut.';
+
+    /** Cloudflare-Fehlercode => Meldung für den Endnutzer. */
+    private const USER_MESSAGES = [
+        'timeout-or-duplicate'   => self::MSG_EXPIRED,
+        'invalid-input-response' => self::MSG_EXPIRED,
+        'missing-input-response' => self::MSG_MISSING,
+        'missing-input-secret'   => self::MSG_CONFIG,
+        'invalid-input-secret'   => self::MSG_CONFIG,
+        'bad-request'            => self::MSG_CONFIG,
+    ];
+
     /**
      * Übersetzt Cloudflare-Fehlercodes in eine Meldung für den Endnutzer.
-     * Interne Codes werden bewusst NICHT durchgereicht.
+     * Der erste bekannte Code gewinnt. Interne Codes werden bewusst NICHT durchgereicht.
      */
     private static function userMessage(array $codes)
     {
         foreach ($codes as $code) {
-            switch ($code) {
-                case 'timeout-or-duplicate':
-                case 'invalid-input-response':
-                    return 'Die Sicherheitsprüfung ist abgelaufen. '
-                         . 'Bitte laden Sie die Seite neu und versuchen Sie es erneut.';
-
-                case 'missing-input-response':
-                    return 'Bitte bestätigen Sie die Sicherheitsprüfung.';
-
-                case 'missing-input-secret':
-                case 'invalid-input-secret':
-                case 'bad-request':
-                    // Konfigurationsfehler auf unserer Seite — Detail nur ins Log.
-                    return 'Die Sicherheitsprüfung ist nicht korrekt konfiguriert. '
-                         . 'Bitte wenden Sie sich an den Betreiber.';
+            if (is_string($code) && isset(self::USER_MESSAGES[$code])) {
+                return self::USER_MESSAGES[$code];
             }
         }
 
-        return 'Die Sicherheitsprüfung war nicht erfolgreich. Bitte versuchen Sie es erneut.';
+        return self::MSG_DEFAULT;
     }
 
     /**

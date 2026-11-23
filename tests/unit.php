@@ -398,6 +398,22 @@ ob_start(); (new TurnstilePlugin())->bootstrap();
 while (ob_get_level()>$before) ob_end_clean();
 ok(!TurnstileSettings::isKilled(),'ohne DISABLED-Datei ist der Kill-Switch wieder aus');
 
+// ---------- Fehlercode -> Nutzermeldung ----------
+grp('Fehlercode -> Nutzermeldung');
+$um = new ReflectionMethod('TurnstileVerifier','userMessage');
+$um->setAccessible(true);
+$expired = 'Die Sicherheitsprüfung ist abgelaufen. Bitte laden Sie die Seite neu und versuchen Sie es erneut.';
+$config  = 'Die Sicherheitsprüfung ist nicht korrekt konfiguriert. Bitte wenden Sie sich an den Betreiber.';
+$default = 'Die Sicherheitsprüfung war nicht erfolgreich. Bitte versuchen Sie es erneut.';
+eq($um->invoke(null,['timeout-or-duplicate']),$expired,'timeout-or-duplicate -> abgelaufen');
+eq($um->invoke(null,['invalid-input-response']),$expired,'invalid-input-response -> abgelaufen');
+eq($um->invoke(null,['missing-input-response']),'Bitte bestätigen Sie die Sicherheitsprüfung.','missing-input-response -> bestätigen');
+foreach (['missing-input-secret','invalid-input-secret','bad-request'] as $c)
+  eq($um->invoke(null,[$c]),$config,"$c -> Konfigurationsfehler");
+eq($um->invoke(null,['internal-error','bad-request']),$config,'erster bekannter Code gewinnt');
+eq($um->invoke(null,[]),$default,'keine Codes -> Standardmeldung');
+eq($um->invoke(null,['unbekannt',42,null]),$default,'unbekannte/fremde Werte -> Standardmeldung');
+
 echo "\n".str_repeat('-',52)."\n";
 printf("PHP %s   PASS: %d   FAIL: %d\n", PHP_VERSION, $PASS, $FAIL);
 exit($FAIL>0?1:0);
