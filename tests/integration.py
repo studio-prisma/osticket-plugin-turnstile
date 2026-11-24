@@ -93,6 +93,24 @@ try:
     csp=h.get('Content-Security-Policy','')
     chk('challenges.cloudflare.com' not in csp,'CSP-Header unangetastet',csp)
     chk('MARKER-PAYLOAD' in b and 'cf-turnstile' not in b,'Body unverändert, kein Widget injiziert')
+
+    print('\n== I8 Passwort vergessen (pwreset.php, scp/pwreset.php) ==')
+    for path in ('/pwreset.php','/scp/pwreset.php'):
+        st,h,b=req(path)
+        chk(st==200,f'{path}: GET liefert 200',st)
+        chk(b.count('class="cf-turnstile"')==1,f'{path}: genau ein Widget',b.count('class="cf-turnstile"'))
+        wi=b.find('class="cf-turnstile"'); fi=b.find('action="pwreset.php"')
+        chk(fi!=-1 and fi<wi<b.find('</form>',fi)+1,f'{path}: Widget steht im Reset-Formular',f'form@{fi} widget@{wi}')
+        chk('data-action="password-reset"' in b,f'{path}: eigene Widget-Action')
+        chk(allows_script_from(h.get('Content-Security-Policy',''),'https://challenges.cloudflare.com'),
+            f'{path}: CSP erlaubt Cloudflare')
+        st,h,b=req(path,{'do':'sendmail','userid':'victim@example.com'})
+        chk(st==403,f'{path}: POST ohne Token blockiert (kein Reset-Mail-Versand)',st)
+        chk('MARKER-RESET-REACHED' not in b,f'{path}: Reset-Logik NICHT erreicht')
+        st,h,b=req(path,{'do':'sendmail','userid':''})
+        chk(st==403,f'{path}: auch mit leerem userid blockiert',st)
+        st,h,b=req(path,{'do':'sendmail','userid':'victim@example.com','cf-turnstile-response':DUMMY})
+        chk(st==200 and 'MARKER-RESET-REACHED' in b,f'{path}: mit gültigem Token durchgelassen',st)
 finally:
     srv.terminate(); srv.wait()
 

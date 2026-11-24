@@ -10,13 +10,13 @@
 
 return array(
     'id'          => 'studio-prisma:turnstile',
-    'version'     => '1.1.0',
+    'version'     => '1.2.0',
     'ost_version' => '1.18',
     'name'        => 'Cloudflare Turnstile',
     'author'      => 'Studio Prisma',
     'url'         => 'https://github.com/studio-prisma/osticket-plugin-turnstile',
     'description' => 'Cloudflare Turnstile als CAPTCHA für Gast-Ticketformular, '
-                   . 'Client-Registrierung, Client-Login und Staff-Login. '
+                   . 'Client-Registrierung, Client-Login, Staff-Login und Passwort vergessen. '
                    . 'Serverseitige Token-Validierung via siteverify, konfigurierbarer Fail-Mode.',
     'plugin'      => 'class.TurnstilePlugin.php:TurnstilePlugin',
 );

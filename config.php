@@ -111,6 +111,17 @@ class TurnstileConfig extends PluginConfig
                 ),
             )),
 
+            'protect_pwreset' => new BooleanField(array(
+                'label'         => 'Passwort vergessen (Client + Staff)',
+                'default'       => true,
+                'configuration' => array(
+                    'desc' => 'Schützt pwreset.php und scp/pwreset.php. Ohne Schutz lassen '
+                            . 'sich dort beliebig viele Reset-Mails auslösen und Benutzernamen '
+                            . 'durchprobieren. Gilt nach dem Update auf 1.2.0 sofort, auch '
+                            . 'ohne erneutes Speichern.',
+                ),
+            )),
+
             'sec_behaviour' => new SectionBreakField(array(
                 'label' => 'Verhalten',
             )),
@@ -205,7 +216,8 @@ class TurnstileConfig extends PluginConfig
         $anyProtection = !empty($config['protect_ticket'])
             || !empty($config['protect_client_register'])
             || !empty($config['protect_client_login'])
-            || !empty($config['protect_staff_login']);
+            || !empty($config['protect_staff_login'])
+            || !empty($config['protect_pwreset']);
 
         $warnings = array();
 

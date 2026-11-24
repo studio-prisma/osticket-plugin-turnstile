@@ -34,7 +34,7 @@ grp('T2 Config');
 $cfg = new TurnstileConfig();
 $opts = $cfg->getOptions();
 foreach (['cf_site_key','cf_secret_key','cf_hostname','protect_ticket','protect_client_register',
-          'protect_client_login','protect_staff_login','fail_mode','timeout','theme','size','log_failures'] as $k)
+          'protect_client_login','protect_staff_login','protect_pwreset','fail_mode','timeout','theme','size','log_failures'] as $k)
   ok(isset($opts[$k]), "Option vorhanden: $k");
 $e=[]; $c=['cf_site_key'=>'','cf_secret_key'=>'x','protect_ticket'=>1];
 eq($cfg->pre_save($c,$e),false,'pre_save lehnt leeren Site Key ab');
@@ -67,6 +67,21 @@ eq(TurnstileSettings::protects('ticket'),true,'protects(ticket)');
 eq(TurnstileSettings::protects('register'),false,'protects(register) aus');
 eq(TurnstileSettings::protects('staff'),false,'protects(staff) aus');
 eq(TurnstileSettings::protects('unsinn'),false,'unbekannter Bereich = false');
+// T1: protect_pwreset fehlt (Installation von vor 1.2.0) -> Schutz an.
+eq(TurnstileSettings::protects('pwreset'),true,'protects(pwreset) ohne gespeicherten Wert = an (Update schliesst T1)');
+TurnstileSettings::load(['cf_secret_key'=>'sec','protect_pwreset'=>null]);
+eq(TurnstileSettings::protects('pwreset'),true,'protect_pwreset=null = an');
+TurnstileSettings::load(['cf_secret_key'=>'sec','protect_pwreset'=>0]);
+eq(TurnstileSettings::protects('pwreset'),false,'protect_pwreset=0 (bewusst abgeschaltet) bleibt aus');
+TurnstileSettings::load(['cf_secret_key'=>'sec','protect_pwreset'=>false]);
+eq(TurnstileSettings::protects('pwreset'),false,'protect_pwreset=false bleibt aus');
+TurnstileSettings::load(['cf_secret_key'=>'sec','protect_pwreset'=>'1']);
+eq(TurnstileSettings::protects('pwreset'),true,'protect_pwreset=1 an');
+TurnstileSettings::load([
+  'cf_site_key'=>'1x00000000000000000000AA','cf_secret_key'=>'sec','cf_hostname'=>'',
+  'fail_mode'=>'closed','timeout'=>5,'theme'=>'dark','size'=>'compact','log_failures'=>false,
+  'protect_ticket'=>1,'protect_client_register'=>0,'protect_client_login'=>1,'protect_staff_login'=>0,
+]);
 $vo = TurnstileSettings::verifierOptions('ticket');
 eq($vo['fail_mode'],'closed','verifierOptions fail_mode');
 $_SERVER['SCRIPT_NAME']='/account.php'; eq(TurnstileSettings::currentArea(),'register','currentArea account.php');
@@ -86,6 +101,7 @@ $areaCases = [
   ['/scp/tickets.php',     '',         'Agent legt Ticket an'],
   ['/login.php',           '',         'Client-Login (deckt der LoginGate ab)'],
   ['/scp/login.php',       '',         'Staff-Login (deckt der LoginGate ab)'],
+  ['/pwreset.php',         '',         'Passwort vergessen (deckt der LoginGate ab)'],
   ['/tickets.php',         '',         'Client-Ticketansicht'],
   ['/',                    '',         'Verzeichnis ohne Skript'],
   ['',                     '',         'leerer SCRIPT_NAME (CLI ohne Kontext)'],
@@ -191,6 +207,17 @@ eq($rm->invoke(null,'/open.php','kein-array'),'','POST ohne Array wird ignoriert
 // Zugangslink: lemail + lticket, die Ticketnummer wirkt wie ein Passwort.
 eq($rm->invoke(null,'/open.php',['lemail'=>'a@b.de','lticket'=>'123456']),'login','Zugangslink-POST an beliebiges Client-Skript wird geprüft');
 eq($rm->invoke(null,'/scp/index.php',['lticket'=>'1']),'','lticket in scp/ zählt nicht');
+// T1: Passwort vergessen, Client und Staff.
+eq($rm->invoke(null,'/pwreset.php'),'pwreset','detectArea pwreset.php (Client)');
+eq($rm->invoke(null,'/scp/pwreset.php'),'pwreset','detectArea scp/pwreset.php (Staff)');
+eq($rm->invoke(null,'/support/scp/pwreset.php'),'pwreset','detectArea scp/pwreset.php im Unterverzeichnis');
+eq($rm->invoke(null,'/pwreset.php',['do'=>'sendmail','userid'=>'']),'pwreset','pwreset auch mit leerem userid');
+eq($rm->invoke(null,'/api/pwreset.php'),'','api/ wird nie als Reset gewertet');
+eq($rm->invoke(null,'/scp/staff.php',['userid'=>'x']),'','userid in anderem scp/-Skript zählt nicht');
+$wa=new ReflectionMethod('TurnstileLoginGate','widgetAction'); $wa->setAccessible(true);
+eq($wa->invoke(null,'pwreset'),'password-reset','Widget-Action pwreset');
+eq($wa->invoke(null,'staff'),'staff-login','Widget-Action staff');
+eq($wa->invoke(null,'login'),'client-login','Widget-Action login');
 
 $sn=new ReflectionMethod('TurnstileLoginGate','scriptName'); $sn->setAccessible(true);
 $_SERVER['SCRIPT_NAME']='\\scp\\login.php';
@@ -349,6 +376,8 @@ $bufCases = [
   ['/scp/tickets.php',      false, 'Staff-Ticketansicht: in scp/ nur login.php'],
   ['/scp/profile.php',      false, 'Staff-Profil'],
   ['/view.php',             true,  'Zugangslink-Formular'],
+  ['/pwreset.php',          true,  'Passwort vergessen Client'],
+  ['/scp/pwreset.php',      true,  'Passwort vergessen Staff'],
   ['/',                     false, 'Verzeichnis ohne Skript'],
   ['',                      false, 'leerer SCRIPT_NAME'],
 ];

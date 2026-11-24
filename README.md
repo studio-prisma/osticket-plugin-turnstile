@@ -13,7 +13,7 @@ CAPTCHA protection for osTicket using [Cloudflare Turnstile](https://developers.
 
 ## What it protects
 
-Four areas, each toggled independently:
+Five areas, each toggled independently:
 
 | Area | Path | Notes |
 |---|---|---|
@@ -21,6 +21,7 @@ Four areas, each toggled independently:
 | Client registration | `account.php` | Requires the field on the *User Information* form |
 | Client login | `login.php`, inline on `tickets.php` / `profile.php`, access link on `view.php` | Widget is injected into the login and the ticket access-link form; a login or access-link POST to any client script is checked |
 | Staff login | `scp/login.php` | Enable last — see the lockout warning below |
+| Password reset | `pwreset.php`, `scp/pwreset.php` | Client and agent "forgot password" forms. On by default, also after an update from 1.1.x |
 
 Email intake and the JSON API are **not** covered. Turnstile is a browser mechanism; those channels need different controls.
 
@@ -102,6 +103,7 @@ Further rollback stages are documented in [INSTALL §8](docs/INSTALL.md#8-kill-s
 | Client registration | off | Protects `account.php` |
 | Client login | off | Protects the client login wherever it is posted |
 | Staff login | off | Protects `scp/login.php` |
+| Password reset | on | Protects `pwreset.php` and `scp/pwreset.php`. Without it, anyone can trigger reset mails in bulk and probe usernames |
 | Fail mode | `closed` | Behaviour when Cloudflare is unreachable: `closed` rejects, `open` lets through |
 | siteverify timeout | 5 s | Total cURL timeout, connect timeout included |
 | Widget theme | auto | `auto`, `light`, `dark` |

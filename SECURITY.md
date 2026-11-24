@@ -6,8 +6,8 @@ Only the latest minor release line is actively maintained. Older minor releases 
 
 | Version | Status |
 |---------|---------------|
-| 1.0.x   | ✅ Supported |
-| < 1.0   | ❌ End of life |
+| 1.2.x   | ✅ Supported |
+| < 1.2   | ❌ End of life |
 
 ## Reporting a Vulnerability
 
@@ -25,7 +25,7 @@ Please do **not** include Cloudflare secret keys, ticket contents, or customer d
 
 Findings in these areas are the ones that matter most:
 
-- **Token validation bypass** — any path that lets a request through without a valid, unused Turnstile token
+- **Token validation bypass** — any path that lets a request through without a valid, unused Turnstile token, on any protected area including the client and agent password-reset forms
 - **Replay** — reuse of an already redeemed token, or a cache that defeats `timeout-or-duplicate`
 - **Hostname enforcement bypass** — accepting a token minted for a different domain while a hostname is configured
 - **Fail-mode bypass** — a request passing under `fail_mode = closed` while Cloudflare is unreachable
