@@ -178,6 +178,7 @@ Dann Instanz anlegen und konfigurieren:
 | Client-Registrierung | aus |
 | Client-Login | aus |
 | Staff-Login | aus |
+| Passwort vergessen | **an** |
 | Fail-Mode | `closed` |
 | Timeout | 5 Sekunden |
 | Fehlversuche protokollieren | an |

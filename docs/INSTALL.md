@@ -178,6 +178,7 @@ Then create an instance and configure it:
 | Client registration | off |
 | Client login | off |
 | Staff login | off |
+| Password reset | **on** |
 | Fail mode | `closed` |
 | Timeout | 5 seconds |
 | Log failures | on |

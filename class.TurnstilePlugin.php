@@ -66,6 +66,7 @@ class TurnstilePlugin extends Plugin
             'protect_client_register' => $config->get('protect_client_register'),
             'protect_client_login'    => $config->get('protect_client_login'),
             'protect_staff_login'     => $config->get('protect_staff_login'),
+            'protect_pwreset'         => $config->get('protect_pwreset'),
         ));
 
         // Feldtyp registrieren — IMMER, auch bei gezogenem Kill-Switch.

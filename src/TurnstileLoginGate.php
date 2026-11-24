@@ -54,8 +54,23 @@ final class TurnstileLoginGate
      *   view.php     Zugangslink-Formular       (E-Mail + Ticketnummer, postet an login.php)
      *   open.php     Gast-Ticketformular        (Formular-Builder-Feld, nur CSP)
      *   account.php  Client-Registrierung       (Formular-Builder-Feld, nur CSP)
+     *   pwreset.php  Passwort vergessen         (Injektion)  + scp/pwreset.php Staff
      */
-    const BUFFER_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'view.php', 'open.php', 'account.php');
+    const BUFFER_SCRIPTS = array('login.php', 'tickets.php', 'profile.php', 'view.php', 'open.php', 'account.php', 'pwreset.php');
+
+    /**
+     * Skripte in scp/, auf denen ein Widget injiziert wird. Alles andere in
+     * scp/ (z. B. scp/tickets.php, die Ticketansicht der Agents) bleibt
+     * ungepuffert.
+     */
+    const STAFF_BUFFER_SCRIPTS = array('login.php', 'pwreset.php');
+
+    /**
+     * Feld, an dem das Reset-Formular erkannt wird. Client (pwreset.request.php,
+     * pwreset.login.php) und Staff (staff/pwreset.php, staff/pwreset.login.php)
+     * nutzen beide name="userid".
+     */
+    const PWRESET_FIELDS = array('userid');
 
     /**
      * Client-Skripte, die ein Login- oder Zugangslink-Formular rendern können.
@@ -73,7 +88,7 @@ final class TurnstileLoginGate
      */
     const CLIENT_LOGIN_FIELDS = array('lpasswd', 'lticket');
 
-    /** @var string '' | 'login' | 'staff' */
+    /** @var string '' | 'login' | 'staff' | 'pwreset' */
     private static $area = '';
 
     /** @var bool */
@@ -97,7 +112,8 @@ final class TurnstileLoginGate
         $anyProtection = TurnstileSettings::protects('ticket')
             || TurnstileSettings::protects('register')
             || TurnstileSettings::protects('login')
-            || TurnstileSettings::protects('staff');
+            || TurnstileSettings::protects('staff')
+            || TurnstileSettings::protects('pwreset');
 
         if (!$anyProtection) {
             return;
@@ -140,10 +156,10 @@ final class TurnstileLoginGate
             return false;
         }
 
-        // In scp/ rendert nur login.php ein Widget; scp/tickets.php ist die
-        // Ticketansicht der Agents und bleibt ungepuffert.
+        // In scp/ rendern nur login.php und pwreset.php ein Widget;
+        // scp/tickets.php ist die Ticketansicht der Agents und bleibt ungepuffert.
         if (strpos($script, '/scp/') !== false) {
-            return basename($script) === 'login.php';
+            return in_array(basename($script), self::STAFF_BUFFER_SCRIPTS, true);
         }
 
         return in_array(basename($script), self::BUFFER_SCRIPTS, true);
@@ -167,6 +183,12 @@ final class TurnstileLoginGate
 
         if (substr($script, -14) === '/scp/login.php') {
             return 'staff';
+        }
+
+        // Passwort vergessen, Client und Staff: verschickt Reset-Mails und
+        // verrät über Antwortzeit/Text, ob ein Konto existiert (T1).
+        if (basename($script) === 'pwreset.php' && strpos($script, '/api/') === false) {
+            return 'pwreset';
         }
 
         if (strpos($script, '/scp/') !== false || strpos($script, '/api/') !== false) {
@@ -200,9 +222,10 @@ final class TurnstileLoginGate
             return;
         }
 
-        // Nur echte Login-Versuche prüfen, nicht jeden POST auf die Seite
-        // (z. B. Passwort-vergessen-Formular).
-        if (!self::looksLikeLogin()) {
+        // Auf pwreset.php ist jeder POST eine Reset-Aktion (sendmail, reset,
+        // newpasswd) — auch einer mit leerem userid. Sonst nur echte
+        // Login-Versuche prüfen, nicht jeden POST auf die Seite.
+        if (self::$area !== 'pwreset' && !self::looksLikeLogin()) {
             return;
         }
 
@@ -317,14 +340,31 @@ final class TurnstileLoginGate
             'sitekey' => $sitekey,
             'theme'   => TurnstileSettings::get('theme', 'auto'),
             'size'    => TurnstileSettings::get('size', 'normal'),
-            'action'  => self::$area === 'staff' ? 'staff-login' : 'client-login',
+            'action'  => self::widgetAction(self::$area),
         ));
 
         // Client-Bereich: nur das Login- oder Zugangslink-Formular, nicht etwa
-        // das Passwort-ändern-Formular auf profile.php.
-        $fields = self::$area === 'login' ? self::CLIENT_LOGIN_FIELDS : array();
+        // das Passwort-ändern-Formular auf profile.php. Reset: das Formular
+        // mit dem userid-Feld.
+        $fields = array();
+        if (self::$area === 'login') {
+            $fields = self::CLIENT_LOGIN_FIELDS;
+        } elseif (self::$area === 'pwreset') {
+            $fields = self::PWRESET_FIELDS;
+        }
 
         return self::injectIntoLoginForm($buffer, $markup, $fields);
+    }
+
+    /** Turnstile-Action je Bereich (erscheint in den Cloudflare-Analytics). */
+    private static function widgetAction($area)
+    {
+        $actions = array(
+            'staff'   => 'staff-login',
+            'pwreset' => 'password-reset',
+        );
+
+        return isset($actions[$area]) ? $actions[$area] : 'client-login';
     }
 
     /**

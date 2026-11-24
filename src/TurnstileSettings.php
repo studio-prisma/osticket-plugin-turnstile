@@ -49,8 +49,25 @@ final class TurnstileSettings
                 'register' => !empty($values['protect_client_register']),
                 'login'    => !empty($values['protect_client_login']),
                 'staff'    => !empty($values['protect_staff_login']),
+                // Neu in 1.2.0. Fehlt der Wert (Installation von vor 1.2.0,
+                // Config noch nicht neu gespeichert), gilt der Schutz als an:
+                // das Update schliesst die Lücke ohne Admin-Klick.
+                'pwreset'  => self::flag($values, 'protect_pwreset', true),
             ),
         );
+    }
+
+    /**
+     * Boolescher Config-Wert mit Vorgabe für einen fehlenden Schlüssel.
+     * Ein gespeichertes false/0/'' bleibt aus, nur null/fehlend nimmt die Vorgabe.
+     */
+    private static function flag(array $values, $key, $default)
+    {
+        if (!array_key_exists($key, $values) || $values[$key] === null) {
+            return (bool) $default;
+        }
+
+        return !empty($values[$key]);
     }
 
     public static function isLoaded()

@@ -13,7 +13,7 @@ CAPTCHA-Schutz für osTicket mit [Cloudflare Turnstile](https://developers.cloud
 
 ## Was geschützt wird
 
-Vier Bereiche, jeder einzeln schaltbar:
+Fünf Bereiche, jeder einzeln schaltbar:
 
 | Bereich | Pfad | Hinweis |
 |---|---|---|
@@ -21,6 +21,7 @@ Vier Bereiche, jeder einzeln schaltbar:
 | Client-Registrierung | `account.php` | Feld zusätzlich dem Formular *User Information* zuordnen |
 | Client-Login | `login.php`, inline auf `tickets.php` / `profile.php`, Zugangslink auf `view.php` | Widget wird in das Login- und das Zugangslink-Formular injiziert; ein Login- oder Zugangslink-POST an jedes Client-Skript wird geprüft |
 | Staff-Login | `scp/login.php` | Zuletzt aktivieren — siehe Aussperr-Warnung |
+| Passwort vergessen | `pwreset.php`, `scp/pwreset.php` | Formulare „Passwort vergessen“ für Kunden und Agenten. Standard an, auch nach einem Update von 1.1.x |
 
 Mail-Eingang und die JSON-API sind **nicht** abgedeckt. Turnstile ist ein Browser-Mechanismus; diese Kanäle brauchen andere Maßnahmen.
 
@@ -38,7 +39,7 @@ Verglichen mit [`nhaskaris/turnstile_osticket`](https://github.com/nhaskaris/tur
 | Fehlermeldung | Cloudflare-Fehlercodes gehen 1:1 an den Nutzer | generische Meldung, Detail nur ins Log |
 | Login-Seiten | nicht abgedeckt | `TurnstileLoginGate` |
 | Content-Security-Policy | Core-Patch nötig, um `challenges.cloudflare.com` zu erlauben | Plugin korrigiert den Header selbst, updatefest |
-| Schutzbereiche | alles oder nichts | vier einzelne Schalter plus Kill-Switch |
+| Schutzbereiche | alles oder nichts | fünf einzelne Schalter plus Kill-Switch |
 
 ---
 
@@ -100,6 +101,7 @@ Weitere Rollback-Stufen: [INSTALL §8](docs/INSTALL.de.md#8-kill-switch-und-roll
 | Client-Registrierung | aus | Schützt `account.php` |
 | Client-Login | aus | Schützt den Client-Login, egal an welches Skript gepostet wird |
 | Staff-Login | aus | Schützt `scp/login.php` |
+| Passwort vergessen | an | Schützt `pwreset.php` und `scp/pwreset.php`. Ohne Schutz kann jeder massenhaft Reset-Mails auslösen und Benutzernamen durchprobieren |
 | Fail-Mode | `closed` | Verhalten bei nicht erreichbarem Cloudflare: `closed` lehnt ab, `open` lässt durch |
 | Timeout siteverify | 5 s | Gesamt-cURL-Timeout inklusive Connect-Timeout |
 | Widget-Theme | auto | `auto`, `light`, `dark` |
